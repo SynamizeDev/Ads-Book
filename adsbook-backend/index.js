@@ -13,7 +13,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const app = express();
-const PORT = 5001; // Force 5001 to avoid collisions
+const PORT = process.env.PORT || 5001;
 
 // DIAGNOSTIC startup: List available models to console
 async function diagnosticListModels() {
@@ -140,10 +140,9 @@ app.post("/api/tools/enhance-text", async (req, res) => {
     const axios = require("axios");
 
     const restStrategies = [
-      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${rawApiKey}`, name: 'Gemini 2.0 Flash (v1beta)' },
-      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${rawApiKey}`, name: 'Flash Latest (v1beta)' },
-      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-latest:generateContent?key=${rawApiKey}`, name: 'Pro Latest (v1beta)' },
-      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${rawApiKey}`, name: 'Gemini 2.5 Flash (v1beta)' }
+      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${rawApiKey}`, name: 'Gemini 2.0 Flash' },
+      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${rawApiKey}`, name: 'Gemini 1.5 Flash' },
+      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${rawApiKey}`, name: 'Gemini 1.5 Pro' }
     ];
 
     // Unified Prompt Strategy
@@ -841,7 +840,7 @@ app.patch("/api/accounts/:id", async (req, res) => {
         drive_link: drive_link || null,
         sheet_link: sheet_link || null
       })
-      .eq("id" === "id" ? "id" : "id", uuid) // Should be "id"
+      .eq("id", uuid)
       .select()
       .single();
 
@@ -1741,11 +1740,11 @@ app.post("/run-alert-engine", async (req, res) => {
 
 // Internal Cron Job (Disable in Production)
 if (process.env.NODE_ENV !== "production") {
-  cron.schedule("0 * * * *", async () => {
+  cron.schedule("*/15 * * * *", async () => {
     console.log("⏰ Internal cron triggered (Non-Production)", new Date().toISOString());
     await runAlertEngine();
   });
-  console.log("🕒 Internal cron enabled (Non-Production)");
+  console.log("🕒 Internal cron enabled (Every 15 mins - Non-Production)");
 } else {
   console.log("🚫 Internal cron disabled (Production Mode)");
 }
