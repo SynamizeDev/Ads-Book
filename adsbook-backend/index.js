@@ -13,7 +13,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = 5001; // Force 5001 to avoid collisions
 
 // DIAGNOSTIC startup: List available models to console
 async function diagnosticListModels() {
@@ -49,6 +49,21 @@ app.get("/health", (req, res) => {
 
 // Track last sync time
 let lastSyncTime = new Date();
+
+// Simple in-memory cache for expensive dashboard data
+const dashboardCache = {
+  health: { data: null, timestamp: 0, ttl: 5 * 60 * 1000 }, // 5 min
+  summary: { data: null, timestamp: 0, ttl: 5 * 60 * 1000 }
+};
+
+app.get("/api/system/ai-check", (req, res) => {
+  res.json({
+    configured: !!process.env.GEMINI_API_KEY,
+    key_suffix: process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.slice(-4) : "None",
+    pid: process.pid,
+    env_keys: Object.keys(process.env).filter(k => k.includes("GEMINI"))
+  });
+});
 
 app.get("/api/system/status", (req, res) => {
   const timeAgo = lastSyncTime ? Math.floor((new Date() - lastSyncTime) / 60000) : 0;
@@ -271,6 +286,14 @@ app.get("/api/dashboard/summary", async (req, res) => {
   try {
     const range = req.query.range || "today";
 
+    // Check Cache
+    if (dashboardCache.summary.data &&
+      dashboardCache.summary.timestamp > (Date.now() - dashboardCache.summary.ttl) &&
+      dashboardCache.summary.range === range) {
+      console.log("🚀 Serving dashboard summary from cache");
+      return res.json(dashboardCache.summary.data);
+    }
+
     // Map range to alert cutoff (consistent with account-health)
     const rangeToMs = {
       today: 24 * 60 * 60 * 1000,
@@ -284,7 +307,6 @@ app.get("/api/dashboard/summary", async (req, res) => {
     const cutoffMs = rangeToMs[range] || rangeToMs.today;
     const alertCutoff = new Date(Date.now() - cutoffMs).toISOString();
 
-    // 1. Total Active Accounts
     const { data: accounts, count: totalAccounts, error: accountsError } = await supabase
       .from("ad_accounts")
       .select("*", { count: "exact" })
@@ -292,7 +314,6 @@ app.get("/api/dashboard/summary", async (req, res) => {
 
     if (accountsError) throw accountsError;
 
-    // 2. Alerts in Selected Range (Split into High CPL and Zero Leads)
     const { data: alertsLogs, error: alertsError } = await supabase
       .from("alert_logs")
       .select("alert_type, ad_accounts!inner(is_active)")
@@ -304,7 +325,6 @@ app.get("/api/dashboard/summary", async (req, res) => {
     const highCplCount = alertsLogs.filter(a => a.alert_type === "HIGH_CPL").length;
     const zeroLeadCount = alertsLogs.filter(a => a.alert_type === "ZERO_LEADS").length;
 
-    // 2.5 Total Ads Paused by Tool in Selected Range
     const { count: adsPausedCount, error: pauseError } = await supabase
       .from("auto_pause_logs")
       .select("id", { count: "exact", head: true })
@@ -312,11 +332,8 @@ app.get("/api/dashboard/summary", async (req, res) => {
 
     if (pauseError) throw pauseError;
 
-    // 3. Ads at Risk (Approaching Threshold)
-    // Fetch insights for all accounts to calculate risk
     const { fetchAdInsights } = require("./services/metaService");
 
-    // Fetch all campaign thresholds at once
     const { data: campaignThresholds, error: thresholdsError } = await supabase
       .from("campaign_thresholds")
       .select("*");
@@ -325,7 +342,7 @@ app.get("/api/dashboard/summary", async (req, res) => {
 
     let adsAtRiskCount = 0;
 
-    // Fetch insights for all active accounts in parallel
+    // Parallel fetching for risk calculation
     const insightsResults = await Promise.all(
       accounts.map(acc => fetchAdInsights(acc.account_id, range).catch(() => []))
     );
@@ -335,32 +352,33 @@ app.get("/api/dashboard/summary", async (req, res) => {
       if (!ads || !Array.isArray(ads)) return;
 
       ads.forEach(ad => {
-        if (ad.leads === 0) return; // Zero leads are already alerted separately
-
-        // Find applicable threshold (Campaign or Account)
+        if (ad.leads === 0) return;
         const campaignT = campaignThresholds.find(
           t => t.ad_account_id === account.id && t.campaign_name === ad.campaign_name
         );
         const threshold = campaignT ? campaignT.cpl_threshold : account.cpl_threshold;
-
         if (!threshold) return;
-
         const cpl = ad.spend / ad.leads;
-
-        // At Risk = >80% of threshold but <= threshold
         if (cpl > (threshold * 0.8) && cpl <= threshold) {
           adsAtRiskCount++;
         }
       });
     });
 
-    res.json({
+    const summaryData = {
       total_accounts: totalAccounts || 0,
       high_cpl_alerts: highCplCount || 0,
       zero_lead_alerts: zeroLeadCount || 0,
       ads_paused: adsPausedCount || 0,
       ads_at_risk: adsAtRiskCount || 0
-    });
+    };
+
+    // Update Cache
+    dashboardCache.summary.data = summaryData;
+    dashboardCache.summary.timestamp = Date.now();
+    dashboardCache.summary.range = range;
+
+    res.json(summaryData);
 
   } catch (error) {
     console.error("❌ Error fetching summary:", error.message);
@@ -439,7 +457,16 @@ app.get("/api/dashboard/urgent-alerts", async (req, res) => {
 // Get account health overview
 app.get("/api/dashboard/account-health", async (req, res) => {
   try {
-    const range = req.query.range || "today"; // today, yesterday, last_7d, last_14d, last_30d, maximum
+    const range = req.query.range || "today";
+    const cacheKey = `health_${range}`;
+
+    // Check cache
+    if (dashboardCache.health.data &&
+      dashboardCache.health.timestamp > (Date.now() - dashboardCache.health.ttl) &&
+      dashboardCache.health.range === range) {
+      console.log("🚀 Serving account health from cache");
+      return res.json(dashboardCache.health.data);
+    }
 
     // Map range to alert cutoff (milliseconds)
     const rangeToMs = {
@@ -448,13 +475,12 @@ app.get("/api/dashboard/account-health", async (req, res) => {
       last_7d: 7 * 24 * 60 * 60 * 1000,
       last_14d: 14 * 24 * 60 * 60 * 1000,
       last_30d: 30 * 24 * 60 * 60 * 1000,
-      maximum: 365 * 24 * 60 * 60 * 1000, // 1 year for 'max' alerts
+      maximum: 365 * 24 * 60 * 60 * 1000,
     };
 
     const cutoffMs = rangeToMs[range] || rangeToMs.today;
     const alertCutoff = new Date(Date.now() - cutoffMs).toISOString();
 
-    // 1. Get Active Accounts
     const { data: accounts, error: accError } = await supabase
       .from("ad_accounts")
       .select("*")
@@ -462,7 +488,6 @@ app.get("/api/dashboard/account-health", async (req, res) => {
 
     if (accError) throw accError;
 
-    // 2. Get Alerts count per account for selected range
     const { data: alerts, error: alertError } = await supabase
       .from("alert_logs")
       .select("ad_account_id, alert_type")
@@ -476,17 +501,13 @@ app.get("/api/dashboard/account-health", async (req, res) => {
       alertCounts[a.ad_account_id]++;
     });
 
-    // 3. Fetch Insights from Meta for each account
     const { fetchAdInsights } = require("./services/metaService");
 
-    const healthData = [];
-
-    for (const acc of accounts) {
+    // PARALLEL FETCHING: Process all accounts simultaneously
+    const healthData = await Promise.all(accounts.map(async (acc) => {
       try {
-        // Fetch campaign IDs once — reused for all date ranges to avoid 3x redundant Meta calls
         const campaignIds = await getActiveCampaignIds(acc.account_id);
 
-        // Fetch insights for selected range and 7d (for comparison)
         const [rangeInsights, sevenDayInsights, monthInsights] = await Promise.all([
           fetchAdInsights(acc.account_id, range, campaignIds),
           fetchAdInsights(acc.account_id, "last_7d", campaignIds),
@@ -506,19 +527,14 @@ app.get("/api/dashboard/account-health", async (req, res) => {
         const monthData = aggregate(monthInsights);
         const activeAlerts = alertCounts[acc.id] || 0;
 
-        // Health Score Logic (based on current range vs threshold)
         let healthScore = 100;
         healthScore -= (activeAlerts * 10);
-
         let status = "HEALTHY";
 
         if (acc.cpl_threshold && currentRangeData.leads > 0 && currentRangeData.cpl > acc.cpl_threshold) {
           healthScore -= 20;
-          if (currentRangeData.cpl > acc.cpl_threshold * 1.5) {
-            status = "CRITICAL";
-          } else {
-            status = "WATCH";
-          }
+          if (currentRangeData.cpl > acc.cpl_threshold * 1.5) status = "CRITICAL";
+          else status = "WATCH";
         }
 
         if (activeAlerts > 0) status = status === "CRITICAL" ? "CRITICAL" : "WATCH";
@@ -527,24 +543,22 @@ app.get("/api/dashboard/account-health", async (req, res) => {
         healthScore = Math.max(0, Math.min(100, healthScore));
         if (status === "CRITICAL") healthScore = Math.min(healthScore, 60);
 
-        healthData.push({
+        return {
           id: acc.id,
-          account_id: acc.account_id, // Meta ID for links
+          account_id: acc.account_id,
           account_name: acc.account_name,
           health_score: healthScore,
           active_alerts: activeAlerts,
-          // Reusing 'today' keys but they now mean 'selected range'
           spend_today: parseFloat(currentRangeData.spend.toFixed(2)),
           leads_today: currentRangeData.leads,
           avg_cpl_today: parseFloat(currentRangeData.cpl.toFixed(2)),
           avg_cpl_7d: parseFloat(sevenDayData.cpl.toFixed(2)),
           spend_this_month: parseFloat(monthData.spend.toFixed(2)),
           status
-        });
-
+        };
       } catch (err) {
         console.error(`Error processing health for account ${acc.account_name}:`, err.message);
-        healthData.push({
+        return {
           id: acc.id,
           account_name: acc.account_name,
           health_score: 0,
@@ -554,17 +568,22 @@ app.get("/api/dashboard/account-health", async (req, res) => {
           avg_cpl_today: 0,
           avg_cpl_7d: 0,
           status: "UNKNOWN"
-        });
+        };
       }
-    }
+    }));
 
     healthData.sort((a, b) => {
       const statusOrder = { "CRITICAL": 0, "WATCH": 1, "HEALTHY": 2, "UNKNOWN": 3 };
       if (statusOrder[a.status] !== statusOrder[b.status]) {
         return statusOrder[a.status] - statusOrder[b.status];
       }
-      return b.health_score - a.health_score; // Higher score better
+      return b.health_score - a.health_score;
     });
+
+    // Update Cache
+    dashboardCache.health.data = healthData;
+    dashboardCache.health.timestamp = Date.now();
+    dashboardCache.health.range = range;
 
     res.json(healthData);
 
@@ -712,6 +731,7 @@ app.get("/api/cpl-logs", async (req, res) => {
 app.get("/api/alerts", async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 50, 500);
+    const offset = parseInt(req.query.offset) || 0;
     let accountId = req.query.account_id || req.query.accountId;
 
     let finalUuid = null;
@@ -720,18 +740,22 @@ app.get("/api/alerts", async (req, res) => {
       if (!finalUuid) return res.json([]);
     }
 
+    const rangeStart = offset;
+    const rangeEnd = offset + limit - 1;
+
     let query = supabase
       .from("alert_logs")
       .select("*, ad_accounts!inner(is_active)")
-      .eq("ad_accounts.is_active", true)
-      .order("sent_at", { ascending: false })
-      .limit(limit);
+      .eq("ad_accounts.is_active", true);
 
     if (finalUuid) {
       query = query.eq("ad_account_id", finalUuid);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(rangeStart, rangeEnd);
 
     if (error) throw error;
 
@@ -939,11 +963,13 @@ async function logActivity(action, entityType, entityId, details = {}) {
 app.get("/api/activity-logs", async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const offset = parseInt(req.query.offset) || 0;
     const { data, error } = await supabase
       .from("activity_logs")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(limit);
+      .order("id", { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) throw error;
     res.json(data || []);
