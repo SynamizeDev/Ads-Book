@@ -261,8 +261,8 @@ export async function getLatestCplLogs(limit: number = 50): Promise<ApiResponse<
   return fetchApi<CplLog[]>(`/api/cpl-logs?limit=${limit}`);
 }
 
-export async function getAlertLogs(limit: number = 50): Promise<ApiResponse<AlertLog[]>> {
-  return fetchApi<AlertLog[]>(`/api/alerts?limit=${limit}`);
+export async function getAlertLogs(limit: number = 50, offset: number = 0): Promise<ApiResponse<AlertLog[]>> {
+  return fetchApi<AlertLog[]>(`/api/alerts?limit=${limit}&offset=${offset}`);
 }
 
 export async function getAccountCplLogs(accountId: string, limit: number = 30): Promise<ApiResponse<CplLog[]>> {
@@ -330,8 +330,8 @@ export async function deleteAccount(accountId: string): Promise<ApiResponse<{ su
   return fetchApi<{ success: boolean }>(`/api/accounts/${accountId}`, { method: "DELETE" });
 }
 
-export async function getActivityLogs(limit: number = 50): Promise<ApiResponse<ActivityLog[]>> {
-  return fetchApi<ActivityLog[]>(`/api/activity-logs?limit=${limit}`);
+export async function getActivityLogs(limit: number = 50, offset: number = 0): Promise<ApiResponse<ActivityLog[]>> {
+  return fetchApi<ActivityLog[]>(`/api/activity-logs?limit=${limit}&offset=${offset}`);
 }
 
 export async function getSettings(): Promise<ApiResponse<Settings>> {

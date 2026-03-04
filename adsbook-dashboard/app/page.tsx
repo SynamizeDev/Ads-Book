@@ -2,26 +2,7 @@ import { getAccounts, getLatestCplLogs, getDashboardSummary, getUrgentAlerts, ge
 import Link from "next/link";
 import SystemStatusWidget from "./components/SystemStatusWidget";
 import RefreshTrigger from "./components/RefreshTrigger";
-import DateRangeSelector from "./components/DateRangeSelector";
 import { createClient } from "@/lib/supabase-server";
-
-const RANGE_LABELS: Record<string, string> = {
-  today: "Today",
-  yesterday: "Yesterday",
-  last_7d: "Last 7 Days",
-  last_14d: "Last 14 Days",
-  last_30d: "Last 30 Days",
-  maximum: "All Time",
-};
-
-const RANGE_SHORT: Record<string, string> = {
-  today: "Today",
-  yesterday: "Yesterday",
-  last_7d: "7D",
-  last_14d: "14D",
-  last_30d: "30D",
-  maximum: "Max",
-};
 
 function WelcomeBanner({ displayName }: { displayName: string }) {
   const now = new Date();
@@ -41,7 +22,7 @@ function WelcomeBanner({ displayName }: { displayName: string }) {
       <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-8">
         <div className="space-y-2">
           <h2 className="text-[32px] font-bold text-white tracking-tight leading-tight">
-            Welcome back, <span className="bg-gradient-to-r from-accent to-blue-400 bg-clip-text text-transparent font-black">{displayName}</span>
+            Welcome, <span className="bg-gradient-to-r from-accent to-blue-400 bg-clip-text text-transparent font-black">{displayName}</span>
           </h2>
           <div className="text-slate-400 text-[16px] font-medium flex items-center gap-2.5">
             <div className="p-1.5 bg-white/5 rounded-lg border border-white/10">
@@ -70,10 +51,8 @@ function WelcomeBanner({ displayName }: { displayName: string }) {
   );
 }
 
-function AccountHealthSection({ healthData, range }: { healthData: AccountHealth[], range: string }) {
+function AccountHealthSection({ healthData }: { healthData: AccountHealth[] }) {
   if (healthData.length === 0) return null;
-
-  const shortLabel = RANGE_SHORT[range] || "Today";
 
   return (
     <div className="space-y-6">
@@ -281,9 +260,8 @@ function ExecutiveSummary({ summary }: { summary: DashboardSummary }) {
   );
 }
 
-export default async function Home(props: { searchParams: Promise<{ range?: string }> }) {
-  const searchParams = await props.searchParams;
-  const range = searchParams.range || "last_30d";
+export default async function Home() {
+  const range = "last_30d";
 
   // Get logged-in user's name
   let displayName = "User";
@@ -302,8 +280,7 @@ export default async function Home(props: { searchParams: Promise<{ range?: stri
     // fallback to "User"
   }
 
-  const [accountsRes, summaryRes, urgentRes, healthRes, statusRes] = await Promise.all([
-    getAccounts(),
+  const [summaryRes, urgentRes, healthRes, statusRes] = await Promise.all([
     getDashboardSummary(range),
     getUrgentAlerts(),
     getAccountHealth(range),
@@ -329,10 +306,8 @@ export default async function Home(props: { searchParams: Promise<{ range?: stri
         <div className="flex justify-between items-end pb-2">
           <div>
             <h1 className="text-[26px] font-bold text-foreground mb-1 tracking-tight">Dashboard</h1>
-            <p className="text-[14px] text-muted">Monitor performance for <span className="text-foreground font-semibold">{RANGE_LABELS[range]}</span></p>
           </div>
           <div className="flex items-center gap-4">
-            <DateRangeSelector />
             <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-4 py-2 rounded-full text-[13px] font-medium border border-green-100 dark:border-green-800">
               <span className="w-2 h-2 rounded-full bg-green-500" />
               Live
@@ -343,7 +318,7 @@ export default async function Home(props: { searchParams: Promise<{ range?: stri
         <WelcomeBanner displayName={displayName} />
         <ExecutiveSummary summary={summary} />
         <UrgentAlertsSection alerts={urgentAlerts} />
-        <AccountHealthSection healthData={healthData} range={range} />
+        <AccountHealthSection healthData={healthData} />
       </div>
 
       <SystemStatusWidget status={systemStatus} />

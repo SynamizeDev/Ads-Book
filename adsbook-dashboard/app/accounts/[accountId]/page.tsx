@@ -177,7 +177,7 @@ function AccountLinksControl({ account, onUpdate }: { account: Account; onUpdate
 
     if (isEditing) {
         return (
-            <div className="bg-card border-2 border-blue-200 p-6 rounded-[20px] shadow-md col-span-1 md:col-span-2 row-span-2">
+            <div className="bg-card border-2 border-blue-200 p-6 rounded-[20px] shadow-md col-span-1 md:col-span-2 flex flex-col">
                 <p className="text-[13px] text-muted font-medium mb-4">Edit Account Links</p>
                 <div className="space-y-4">
                     <div>
@@ -216,7 +216,7 @@ function AccountLinksControl({ account, onUpdate }: { account: Account; onUpdate
     }
 
     return (
-        <div className="bg-card rounded-[20px] p-6 shadow-sm border border-border col-span-1 md:col-span-2 row-span-2 flex flex-col">
+        <div className="bg-card rounded-[20px] p-6 shadow-sm border border-border col-span-1 md:col-span-2 flex flex-col">
             <div className="flex justify-between items-start mb-4">
                 <p className="text-[13px] text-muted font-medium">Account Assets</p>
                 <button onClick={() => setIsEditing(true)} className="text-muted hover:text-foreground p-1.5 rounded-[10px] hover:bg-hover-bg transition-colors" title="Edit Assets">
@@ -332,7 +332,7 @@ function CplThresholdControl({ account, onUpdate }: { account: Account; onUpdate
     }
 
     return (
-        <div className={`bg-card rounded-[20px] p-6 transition-all shadow-sm hover:shadow-md border ${success ? 'border-green-200' : 'border-border'}`}>
+        <div className={`bg-card rounded-[20px] p-6 transition-all shadow-sm hover:shadow-md border ${success ? 'border-green-200' : 'border-border'} h-full`}>
             <div className="flex justify-between items-start mb-2">
                 <p className="text-[13px] text-muted font-medium">CPL Threshold</p>
                 <button onClick={() => setIsEditing(true)} className="text-muted hover:text-foreground transition-colors p-1 rounded-[8px] hover:bg-hover-bg" title="Edit Threshold">
@@ -654,7 +654,7 @@ export default function AccountPage() {
                     {currentAccount && <CplThresholdControl account={currentAccount} onUpdate={handleThresholdUpdate} />}
 
                     {/* 🔹 Active Ads Card (Prominent) */}
-                    <div className="bg-card rounded-[20px] p-6 shadow-sm hover:shadow-md transition-all border border-border">
+                    <div className="bg-card rounded-[20px] p-6 shadow-sm hover:shadow-md transition-all border border-border h-full">
                         <p className="text-[13px] text-muted font-medium mb-2">Active Ads</p>
                         <div className="flex items-baseline gap-2">
                             <h3 className="text-3xl font-bold tabular-nums text-foreground">{summary.totalActiveAds}</h3>
@@ -667,7 +667,7 @@ export default function AccountPage() {
 
                     {/* Alerts + Auto-Pause combined card */}
                     {currentAccount && (
-                        <div className="bg-card rounded-[20px] p-6 shadow-sm hover:shadow-md transition-all border border-border space-y-4">
+                        <div className="bg-card rounded-[20px] p-6 shadow-sm hover:shadow-md transition-all border border-border space-y-4 h-full">
                             {/* Alerts */}
                             <div>
                                 <p className="text-[13px] text-muted font-medium mb-2">Alerts</p>
@@ -703,7 +703,7 @@ export default function AccountPage() {
                 {/* Top 3 Worst Ads */}
                 {top3WorstAds.length > 0 && (
                     <section className="space-y-5">
-                        <h2 className="text-[17px] font-semibold text-foreground">Worst Performing Ads</h2>
+                        <h2 className="text-[17px] font-semibold text-foreground">Live Ads</h2>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                             {top3WorstAds.map((ad, i) => (
                                 <div key={ad.ad_meta_id} className={`bg-card rounded-[20px] p-6 shadow-sm hover:shadow-md transition-all border ${ad.status === 'CRITICAL' ? 'border-l-4 border-l-red-500 border-border' :

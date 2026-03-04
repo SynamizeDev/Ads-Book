@@ -36,19 +36,22 @@ export default function SplashScreen() {
                     className={`transition-all duration-700 ${fadeOut ? "scale-110 opacity-0" : "scale-100 opacity-100"
                         }`}
                 >
-                    <div className="w-16 h-16 bg-foreground rounded-[18px] flex items-center justify-center shadow-lg">
-                        <span className="text-2xl font-bold tracking-tight text-background">A</span>
+                    <div className="relative w-80 h-24 flex items-center justify-center">
+                        <img
+                            src="/logo.jpg"
+                            alt="Ads Book"
+                            className="w-full h-full object-contain"
+                        />
                     </div>
                 </div>
 
-                {/* Brand Name */}
+                {/* Brand Name Hidden (already in logo) */}
                 <div
                     className={`text-center transition-all duration-500 delay-100 ${fadeOut ? "translate-y-2 opacity-0" : "translate-y-0 opacity-100"
                         }`}
                     style={{ animationDelay: "200ms" }}
                 >
-                    <h1 className="text-xl font-bold text-foreground tracking-tight">Ads Book</h1>
-                    <p className="text-[12px] text-muted mt-1 tracking-wider uppercase font-medium">
+                    <p className="text-[11px] text-muted tracking-[0.2em] uppercase font-bold opacity-60">
                         Ad Performance Monitor
                     </p>
                 </div>

@@ -3,19 +3,26 @@
 import { useState, useEffect } from "react";
 import { getAlertLogs, AlertLog } from "@/lib/api";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function AlertsPage() {
     const [alerts, setAlerts] = useState<AlertLog[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [page, setPage] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const [direction, setDirection] = useState(0); // -1 for prev, 1 for next
+    const PAGE_SIZE = 10;
 
     useEffect(() => {
         async function fetchAlerts() {
             try {
                 setLoading(true);
-                const res = await getAlertLogs(100);
+                const res = await getAlertLogs(PAGE_SIZE, page * PAGE_SIZE);
                 if (res.success && res.data) {
                     setAlerts(res.data);
+                    setHasMore(res.data.length === PAGE_SIZE);
                 } else {
                     setError(res.error || "Failed to fetch alerts");
                 }
@@ -27,9 +34,14 @@ export default function AlertsPage() {
             }
         }
         fetchAlerts();
-    }, []);
+    }, [page]);
 
-    if (loading) {
+    const handlePageChange = (newPage: number) => {
+        setDirection(newPage > page ? 1 : -1);
+        setPage(newPage);
+    };
+
+    if (loading && alerts.length === 0) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
@@ -66,71 +78,142 @@ export default function AlertsPage() {
                             <p className="text-[13px] text-red-600 dark:text-red-400 mt-0.5">{error}</p>
                         </div>
                     </div>
-                ) : alerts.length === 0 ? (
-                    <div className="bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800 rounded-[20px] p-14 text-center">
-                        <div className="flex flex-col items-center">
-                            <div className="w-14 h-14 bg-green-100 dark:bg-green-900/40 rounded-full flex items-center justify-center mb-4">
-                                <svg className="w-7 h-7 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            </div>
-                            <h3 className="text-lg font-semibold text-green-800 dark:text-green-300 mb-1">No Alerts</h3>
-                            <p className="text-[14px] text-green-600 dark:text-green-400">No alert history found</p>
-                        </div>
-                    </div>
                 ) : (
-                    <div className="bg-card rounded-[20px] overflow-hidden shadow-sm border border-border">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-hover-bg border-b border-border">
-                                        <th className="px-6 py-4 text-[11px] font-medium text-muted uppercase tracking-wider">Date</th>
-                                        <th className="px-6 py-4 text-[11px] font-medium text-muted uppercase tracking-wider">Account</th>
-                                        <th className="px-6 py-4 text-[11px] font-medium text-muted uppercase tracking-wider">Campaign / Ad</th>
-                                        <th className="px-6 py-4 text-[11px] font-medium text-muted uppercase tracking-wider">Type</th>
-                                        <th className="px-6 py-4 text-[11px] font-medium text-muted uppercase tracking-wider text-right">CPL / Threshold</th>
-                                        <th className="px-6 py-4 text-[11px] font-medium text-muted uppercase tracking-wider text-right">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border">
-                                    {alerts.map((alert) => (
-                                        <tr key={alert.id} className="hover:bg-hover-bg transition-colors">
-                                            <td className="px-6 py-5 whitespace-nowrap">
-                                                <div className="text-[13px] font-medium text-foreground tabular-nums">
-                                                    {new Date(alert.created_at).toLocaleDateString([], { month: 'short', day: '2-digit', year: 'numeric' })}
-                                                </div>
-                                                <div className="text-[12px] text-muted mt-0.5 tabular-nums">
-                                                    {new Date(alert.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <Link href={`/accounts/${alert.ad_account_id}`} className="text-[13px] text-accent hover:opacity-80 font-medium transition-colors">
-                                                    {alert.ad_account_id.substring(0, 8)}...
-                                                </Link>
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <div className="text-[13px] text-foreground font-medium" title={alert.campaign_name}>{alert.campaign_name}</div>
-                                                <div className="text-[12px] text-muted mt-0.5 truncate max-w-[220px]" title={alert.ad_name}>{alert.ad_name}</div>
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-medium ${alert.alert_type === 'ZERO_LEADS' ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'}`}>
-                                                    {alert.alert_type === 'ZERO_LEADS' ? 'Zero Leads' : 'High CPL'}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-5 text-right">
-                                                <div className="text-[13px] font-semibold text-foreground tabular-nums">${alert.calculated_cpl.toFixed(2)}</div>
-                                                <div className="text-[12px] text-muted mt-0.5 tabular-nums">Threshold: ${alert.cpl_threshold}</div>
-                                            </td>
-                                            <td className="px-6 py-5 text-right">
-                                                <a href="https://business.facebook.com/adsmanager" target="_blank" rel="noopener noreferrer"
-                                                    className="text-[13px] text-accent hover:opacity-80 font-medium transition-colors">
-                                                    View ↗
-                                                </a>
-                                            </td>
+                    <div className="space-y-8">
+                        <div className="bg-card rounded-[24px] overflow-hidden shadow-sm border border-border relative min-h-[500px]">
+                            {loading && (
+                                <div className="absolute inset-x-0 top-0 z-10">
+                                    <div className="h-[2px] w-full bg-hover-bg overflow-hidden">
+                                        <div className="h-full bg-foreground animate-progress origin-left" />
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-hover-bg/50 border-b border-border">
+                                            <th className="px-6 py-4 text-[11px] font-medium text-muted uppercase tracking-wider">Date</th>
+                                            <th className="px-6 py-4 text-[11px] font-medium text-muted uppercase tracking-wider">Account</th>
+                                            <th className="px-6 py-4 text-[11px] font-medium text-muted uppercase tracking-wider">Campaign / Ad</th>
+                                            <th className="px-6 py-4 text-[11px] font-medium text-muted uppercase tracking-wider">Type</th>
+                                            <th className="px-6 py-4 text-[11px] font-medium text-muted uppercase tracking-wider text-right">CPL / Threshold</th>
+                                            <th className="px-6 py-4 text-[11px] font-medium text-muted uppercase tracking-wider text-right">Action</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-border relative">
+                                        <AnimatePresence mode="wait" custom={direction}>
+                                            {alerts.length === 0 ? (
+                                                <motion.tr
+                                                    key="empty"
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    exit={{ opacity: 0 }}
+                                                >
+                                                    <td colSpan={6} className="px-6 py-32 text-center">
+                                                        <div className="flex flex-col items-center">
+                                                            <div className="w-14 h-14 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center mb-4">
+                                                                <svg className="w-7 h-7 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                </svg>
+                                                            </div>
+                                                            <h3 className="text-lg font-semibold text-foreground mb-1">No Alerts Found</h3>
+                                                            <p className="text-[14px] text-muted">History is clear for this page.</p>
+                                                            {page > 0 && (
+                                                                <button onClick={() => handlePageChange(0)} className="mt-4 text-[13px] text-accent font-medium hover:underline">Return to Page 1</button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </motion.tr>
+                                            ) : (
+                                                <motion.tr
+                                                    key={page}
+                                                    custom={direction}
+                                                    initial={{ opacity: 0, x: direction * 20 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    exit={{ opacity: 0, x: direction * -20 }}
+                                                    transition={{ duration: 0.2, ease: "easeOut" }}
+                                                >
+                                                    <td colSpan={6} className="p-0">
+                                                        <table className="w-full">
+                                                            <tbody className="divide-y divide-border">
+                                                                {alerts.map((alert) => (
+                                                                    <tr key={alert.id} className="hover:bg-hover-bg/50 transition-colors">
+                                                                        <td className="px-6 py-5 whitespace-nowrap min-w-[160px]">
+                                                                            <div className="text-[13px] font-medium text-foreground tabular-nums">
+                                                                                {new Date(alert.created_at).toLocaleDateString([], { month: 'short', day: '2-digit', year: 'numeric' })}
+                                                                            </div>
+                                                                            <div className="text-[12px] text-muted mt-0.5 tabular-nums">
+                                                                                {new Date(alert.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                            </div>
+                                                                        </td>
+                                                                        <td className="px-6 py-5 min-w-[120px]">
+                                                                            <Link href={`/accounts/${alert.ad_account_id}`} className="text-[13px] text-accent hover:opacity-80 font-medium transition-colors">
+                                                                                {alert.ad_account_id.substring(0, 8)}...
+                                                                            </Link>
+                                                                        </td>
+                                                                        <td className="px-6 py-5">
+                                                                            <div className="text-[13px] text-foreground font-medium line-clamp-1 max-w-[300px]" title={alert.campaign_name}>{alert.campaign_name}</div>
+                                                                            <div className="text-[12px] text-muted mt-0.5 truncate max-w-[220px]" title={alert.ad_name}>{alert.ad_name}</div>
+                                                                        </td>
+                                                                        <td className="px-6 py-5 min-w-[120px]">
+                                                                            <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-medium ${alert.alert_type === 'ZERO_LEADS' ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'}`}>
+                                                                                {alert.alert_type === 'ZERO_LEADS' ? 'Zero Leads' : 'High CPL'}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="px-6 py-5 text-right min-w-[150px]">
+                                                                            <div className="text-[13px] font-semibold text-foreground tabular-nums">
+                                                                                ${alert.alert_type === 'ZERO_LEADS' ? alert.spend.toFixed(2) : alert.calculated_cpl.toFixed(2)}
+                                                                            </div>
+                                                                            <div className="text-[12px] text-muted mt-0.5 tabular-nums">
+                                                                                {alert.alert_type === 'ZERO_LEADS' ? 'Spend' : 'CPL'} vs ${alert.cpl_threshold}
+                                                                            </div>
+                                                                        </td>
+                                                                        <td className="px-6 py-5 text-right min-w-[100px]">
+                                                                            <a href="https://business.facebook.com/adsmanager" target="_blank" rel="noopener noreferrer"
+                                                                                className="inline-flex items-center gap-1 text-[13px] text-accent hover:opacity-80 font-medium transition-colors">
+                                                                                View <ChevronRight className="w-3.5 h-3.5" />
+                                                                            </a>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </td>
+                                                </motion.tr>
+                                            )}
+                                        </AnimatePresence>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* Pagination Controls */}
+                        <div className="flex items-center justify-between px-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[13px] text-muted">Page</span>
+                                <div className="px-3 py-1 bg-card border border-border rounded-[8px] text-[13px] font-semibold text-foreground">
+                                    {page + 1}
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => handlePageChange(Math.max(0, page - 1))}
+                                    disabled={page === 0 || loading}
+                                    className="p-2 aspect-square rounded-[12px] border border-border text-foreground hover:bg-hover-bg disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95"
+                                    aria-label="Previous Page"
+                                >
+                                    <ChevronLeft className="w-5 h-5" />
+                                </button>
+                                <button
+                                    onClick={() => handlePageChange(page + 1)}
+                                    disabled={!hasMore || loading}
+                                    className="p-2 aspect-square rounded-[12px] border border-border text-foreground hover:bg-hover-bg disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95"
+                                    aria-label="Next Page"
+                                >
+                                    <ChevronRight className="w-5 h-5" />
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}

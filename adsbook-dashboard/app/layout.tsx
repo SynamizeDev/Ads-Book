@@ -22,6 +22,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Ads Book Dashboard",
   description: "Ad Performance Monitoring",
+  icons: {
+    icon: [
+      { url: "/app-icon.png?v=3", type: "image/png" },
+    ],
+    apple: [
+      { url: "/app-icon.png?v=3", type: "image/png" },
+    ],
+  },
 };
 
 import { Account, getAgencyProfile, getAccounts as fetchAccounts, API_URL } from "@/lib/api";
@@ -65,6 +73,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     return (
       <html lang="en" suppressHydrationWarning>
         <head>
+          <link rel="icon" href="/app-icon.png?v=3" type="image/png" />
+          <link rel="apple-touch-icon" href="/app-icon.png?v=3" />
           <script
             dangerouslySetInnerHTML={{
               __html: `(function(){try{var t=localStorage.getItem('adsbook-theme');if(t==='light'){document.documentElement.classList.remove('dark')}else{document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}})();`,
@@ -79,8 +89,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   }
 
   // Authenticated layout with sidebar
-  const accounts = await getAccounts();
-  const profile = await getProfile();
+  const [accounts, profile] = await Promise.all([
+    getAccounts(),
+    getProfile()
+  ]);
 
   const displayName = userEmail ? userEmail.split("@")[0] : profile.name;
   const initials = displayName
@@ -93,6 +105,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/favicon.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/favicon.png" />
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('adsbook-theme');if(t==='light'){document.documentElement.classList.remove('dark')}else{document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}})();`,
@@ -107,15 +122,13 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             <aside className="w-[260px] bg-sidebar-bg border-r border-sidebar-border flex flex-col flex-shrink-0 sticky top-0 h-screen z-50 overflow-hidden transition-colors duration-200">
 
               {/* Logo */}
-              <div className="px-6 py-5 border-b border-sidebar-border">
-                <Link href="/" className="flex items-center gap-3 group">
-                  <div className="w-9 h-9 bg-foreground rounded-[12px] flex items-center justify-center shadow-sm">
-                    <span className="text-sm font-bold tracking-tight text-background">A</span>
-                  </div>
-                  <div>
-                    <h1 className="text-[15px] font-semibold text-foreground tracking-tight leading-none">Ads Book</h1>
-                    <p className="text-[11px] text-muted mt-0.5">Ad Performance Monitor</p>
-                  </div>
+              <div className="px-6 py-2 border-b bg-white border-sidebar-border/50 flex justify-center">
+                <Link href="/" className="flex items-center w-fit group transition-opacity hover:opacity-90">
+                  <img
+                    src="/logo-light.jpeg"
+                    alt="Ads Book Logo"
+                    className="h-14 w-auto object-contain"
+                  />
                 </Link>
               </div>
 

@@ -76,6 +76,7 @@ export default function SidebarNav({ accounts }: { accounts: Account[] }) {
                             <Link
                                 key={item.href}
                                 href={item.href}
+                                prefetch={true}
                                 className={`flex items-center gap-3 px-3 py-2.5 rounded-[12px] transition-all text-[13px] ${isActive
                                     ? "bg-foreground text-background font-medium shadow-sm"
                                     : "text-muted hover:text-foreground hover:bg-hover-bg"
@@ -90,21 +91,41 @@ export default function SidebarNav({ accounts }: { accounts: Account[] }) {
 
                 <div className="space-y-1">
                     <p className="text-[11px] font-medium text-muted uppercase tracking-wider px-3 mb-3">Tools</p>
-                    {toolsItems.map((item) => (
-                        <a
-                            key={item.href}
-                            href={item.href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-3 px-3 py-2.5 rounded-[12px] transition-all text-[13px] text-muted hover:text-foreground hover:bg-hover-bg group"
-                        >
-                            {item.icon}
-                            <span className="flex-1">{item.label}</span>
-                            <svg className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
-                        </a>
-                    ))}
+                    {toolsItems.map((item) => {
+                        const isExternal = 'external' in item && item.external;
+                        if (isExternal) {
+                            return (
+                                <a
+                                    key={item.href}
+                                    href={item.href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-3 px-3 py-2.5 rounded-[12px] transition-all text-[13px] text-muted hover:text-foreground hover:bg-hover-bg group"
+                                >
+                                    {item.icon}
+                                    <span className="flex-1">{item.label}</span>
+                                    <svg className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                </a>
+                            );
+                        }
+
+                        const isActive = pathname.startsWith(item.href);
+                        return (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                className={`flex items-center gap-3 px-3 py-2.5 rounded-[12px] transition-all text-[13px] ${isActive
+                                    ? "bg-foreground text-background font-medium shadow-sm"
+                                    : "text-muted hover:text-foreground hover:bg-hover-bg"
+                                    }`}
+                            >
+                                {item.icon}
+                                {item.label}
+                            </Link>
+                        );
+                    })}
                 </div>
 
                 <div className="space-y-1">

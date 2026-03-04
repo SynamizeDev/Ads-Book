@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import Toast from "../../components/Toast";
 import { enhanceText } from "@/lib/api";
 
@@ -124,6 +126,70 @@ const transformText = (text: string, type: 'normal' | 'bold' | 'italic' | 'boldI
 
 const QUICK_EMOJIS = ["🔥", "🚀", "💎", "✅", "📍", "👉", "✨", "📈", "💰", "⚡", "🎁", "⭐"];
 
+function AILoadingModal({ isOpen }: { isOpen: boolean }) {
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    if (!mounted) return null;
+
+    return createPortal(
+        <AnimatePresence>
+            {isOpen && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[9999] flex items-start justify-end p-8 bg-black/20 pointer-events-none"
+                >
+                    <motion.div
+                        initial={{ x: 100, y: -20, opacity: 0 }}
+                        animate={{ x: 0, y: 0, opacity: 1 }}
+                        exit={{ x: 100, y: -20, opacity: 0 }}
+                        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                        className="w-full max-w-sm bg-card border border-border rounded-[24px] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.5)] pointer-events-auto relative overflow-hidden"
+                    >
+                        <div className="absolute top-0 left-0 w-1.5 h-full bg-accent" />
+                        <div className="flex gap-5 items-start text-left">
+                            <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                                className="shrink-0 w-12 h-12 flex items-center justify-center bg-accent/10 rounded-2xl"
+                            >
+                                <svg className="w-6 h-6 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                    <path d="M12 2v4m0 12v4M2 12h4m12 0h4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" strokeLinecap="round" />
+                                </svg>
+                            </motion.div>
+
+                            <div className="space-y-4 flex-1">
+                                <div className="space-y-1">
+                                    <h3 className="text-[17px] font-bold text-foreground">Refining Ad Copy</h3>
+                                    <p className="text-[13.5px] text-muted leading-relaxed">
+                                        Applying psychology for premium results.
+                                        <span className="block mt-1 font-semibold text-accent">ETA: 5-10 seconds</span>
+                                    </p>
+                                </div>
+
+                                <div className="w-full h-1 bg-border/30 rounded-full overflow-hidden">
+                                    <motion.div
+                                        initial={{ x: "-100%" }}
+                                        animate={{ x: "100%" }}
+                                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                                        className="w-1/2 h-full bg-accent"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+                </motion.div>
+            )}
+        </AnimatePresence>,
+        document.body
+    );
+}
+
 export default function TextFormatterPage() {
     const [input, setInput] = useState("");
     const [isEnhancing, setIsEnhancing] = useState(false);
@@ -150,8 +216,10 @@ export default function TextFormatterPage() {
         }
 
         setIsEnhancing(true);
+        console.log("AI Enhancement starting...");
         try {
             const response = await enhanceText(selectedText, mode);
+            console.log("AI Response received:", response.success);
             if (response.success && response.data) {
                 const enhanced = response.data.enhancedText;
                 if (start !== end) {
@@ -371,6 +439,7 @@ export default function TextFormatterPage() {
                 </div>
             </div>
 
+            <AILoadingModal isOpen={isEnhancing} />
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </div>
     );
