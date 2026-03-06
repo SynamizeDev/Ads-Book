@@ -50,7 +50,9 @@ export interface AlertLog {
   agency_id: string;
   alert_type: string;
   campaign_name: string;
+  campaign_meta_id: string | null;
   adset_name: string;
+  adset_meta_id: string | null;
   ad_name: string;
   ad_meta_id: string;
   spend: number;
@@ -59,6 +61,7 @@ export interface AlertLog {
   cpl_threshold: number;
   message?: string;
   created_at: string;
+  ad_accounts?: { account_id: string | null };
 }
 
 export interface DashboardSummary {
@@ -86,7 +89,13 @@ export interface UrgentAlert {
   id: string;
   severity: "CRITICAL" | "WARNING";
   account_name: string;
+  account_meta_id: string | null;
   campaign_name: string;
+  campaign_meta_id: string | null;
+  adset_name: string | null;
+  adset_meta_id: string | null;
+  ad_name: string | null;
+  ad_meta_id: string | null;
   issue_type: string;
   created_at: string;
 }

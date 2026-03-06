@@ -14,14 +14,12 @@ const ThemeContext = createContext<{
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const [theme, setTheme] = useState<Theme>("dark");
-    const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
         const stored = localStorage.getItem("adsbook-theme") as Theme | null;
         const preferred = stored || "dark";
         setTheme(preferred);
         document.documentElement.classList.toggle("dark", preferred === "dark");
-        setMounted(true);
     }, []);
 
     const toggleTheme = () => {
@@ -31,9 +29,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         document.documentElement.classList.toggle("dark", next === "dark");
     };
 
-    // Prevent flash of wrong theme
-    if (!mounted) return <>{children}</>;
-
+    // Always render the Provider — theme flicker is already prevented by the
+    // inline <script> in layout.tsx <head> which sets the 'dark' class before
+    // React hydrates. The !mounted early-return pattern causes hydration mismatches.
     return (
         <ThemeContext.Provider value={{ theme, toggleTheme }}>
             {children}

@@ -58,13 +58,13 @@ export default function AlertsPage() {
                 <nav className="flex items-center gap-2 text-[13px] text-muted mb-8">
                     <Link href="/" className="hover:text-foreground transition-colors">Dashboard</Link>
                     <span>/</span>
-                    <span className="text-foreground font-medium">Alert History</span>
+                    <span className="text-foreground font-medium">Alert/Pause History</span>
                 </nav>
             </div>
 
             <div className="px-10 max-w-[1400px] mx-auto space-y-8">
                 <div className="pb-2">
-                    <h1 className="text-[26px] font-bold text-foreground mb-1 tracking-tight">Alert History</h1>
+                    <h1 className="text-[26px] font-bold text-foreground mb-1 tracking-tight">Alert/Pause History</h1>
                     <p className="text-[14px] text-muted">Historical performance alerts and exceptions</p>
                 </div>
 
@@ -170,10 +170,21 @@ export default function AlertsPage() {
                                                                             </div>
                                                                         </td>
                                                                         <td className="px-6 py-5 text-right min-w-[100px]">
-                                                                            <a href="https://business.facebook.com/adsmanager" target="_blank" rel="noopener noreferrer"
-                                                                                className="inline-flex items-center gap-1 text-[13px] text-accent hover:opacity-80 font-medium transition-colors">
-                                                                                View <ChevronRight className="w-3.5 h-3.5" />
-                                                                            </a>
+                                                            <a
+                                                                href={(() => {
+                                                                    const base = "https://adsmanager.facebook.com/adsmanager/manage/ads";
+                                                                    const params = new URLSearchParams();
+                                                                    const acctId = alert.ad_accounts?.account_id;
+                                                                    if (acctId) params.set("act", acctId);
+                                                                    if (alert.campaign_meta_id) params.set("selected_campaign_ids", alert.campaign_meta_id);
+                                                                    if (alert.adset_meta_id) params.set("selected_adset_ids", alert.adset_meta_id);
+                                                                    const qs = params.toString();
+                                                                    return qs ? `${base}?${qs}` : base;
+                                                                })()}
+                                                                target="_blank" rel="noopener noreferrer"
+                                                                className="inline-flex items-center gap-1 text-[13px] text-accent hover:opacity-80 font-medium transition-colors">
+                                                                View <ChevronRight className="w-3.5 h-3.5" />
+                                                            </a>
                                                                         </td>
                                                                     </tr>
                                                                 ))}

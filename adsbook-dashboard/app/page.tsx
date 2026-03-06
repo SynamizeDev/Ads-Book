@@ -167,14 +167,38 @@ function UrgentAlertsSection({ alerts }: { alerts: UrgentAlert[] }) {
               </span>
             </div>
 
-            <h3 className="font-semibold text-foreground text-[14px] mb-1">{alert.account_name}</h3>
-            <p className="text-xs text-muted line-clamp-1 mb-4">{alert.campaign_name}</p>
+            <h3 className="font-semibold text-foreground text-[14px] mb-2">{alert.account_name}</h3>
+            <div className="space-y-1 mb-4">
+              <p className="text-xs text-muted line-clamp-1" title={alert.campaign_name}>
+                <span className="text-muted/60 mr-1">Campaign</span>{alert.campaign_name}
+              </p>
+              {alert.adset_name && (
+                <p className="text-xs text-muted line-clamp-1" title={alert.adset_name}>
+                  <span className="text-muted/60 mr-1">Ad Set</span>{alert.adset_name}
+                </p>
+              )}
+              {alert.ad_name && (
+                <p className="text-xs text-muted line-clamp-1" title={alert.ad_name}>
+                  <span className="text-muted/60 mr-1">Ad</span>{alert.ad_name}
+                </p>
+              )}
+            </div>
 
             <div className="flex items-center justify-between pt-3 border-t border-border">
               <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full ${alert.issue_type.includes('Zero') ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'}`}>
                 {alert.issue_type}
               </span>
-              <a href="https://business.facebook.com/adsmanager" target="_blank" rel="noopener noreferrer"
+              <a
+                href={(() => {
+                  const base = "https://adsmanager.facebook.com/adsmanager/manage/ads";
+                  const params = new URLSearchParams();
+                  if (alert.account_meta_id) params.set("act", alert.account_meta_id);
+                  if (alert.campaign_meta_id) params.set("selected_campaign_ids", alert.campaign_meta_id);
+                  if (alert.adset_meta_id) params.set("selected_adset_ids", alert.adset_meta_id);
+                  const qs = params.toString();
+                  return qs ? `${base}?${qs}` : base;
+                })()}
+                target="_blank" rel="noopener noreferrer"
                 className="text-[13px] text-accent hover:opacity-80 font-medium transition-colors">
                 Resolve ↗
               </a>

@@ -948,7 +948,7 @@ export default function AccountPage() {
                 {/* Account Alert History */}
                 <section className="space-y-5">
                     <div className="flex items-center justify-between">
-                        <h2 className="text-[17px] font-semibold text-foreground">Alert History</h2>
+                        <h2 className="text-[17px] font-semibold text-foreground">Alert/Pause History</h2>
                         <Link href="/alerts" className="text-[13px] text-blue-600 hover:text-blue-700 font-medium transition-colors">
                             View all →
                         </Link>

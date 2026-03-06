@@ -5,7 +5,7 @@ import Link from "next/link";
 import SidebarNav from "./components/SidebarNav";
 import { ThemeProvider } from "./components/ThemeProvider";
 import ThemeToggle from "./components/ThemeToggle";
-import SplashScreen from "./components/SplashScreen";
+import SplashScreenLoader from "./components/SplashScreenLoader";
 import LogoutIcon from "./components/LogoutIcon";
 
 const geistSans = Geist({
@@ -110,7 +110,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider>
-          <SplashScreen />
+          <SplashScreenLoader />
           <div className="flex min-h-screen bg-background">
             {/* --- Sidebar --- */}
             <aside className="w-[260px] bg-sidebar-bg border-r border-sidebar-border flex flex-col flex-shrink-0 sticky top-0 h-screen z-50 overflow-hidden transition-colors duration-200">
