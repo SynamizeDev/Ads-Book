@@ -50,11 +50,11 @@ app.get("/health", (req, res) => {
 // Track last sync time
 let lastSyncTime = new Date();
 
-// Simple in-memory cache for expensive dashboard data
-const dashboardCache = {
-  health: { data: null, timestamp: 0, ttl: 5 * 60 * 1000 }, // 5 min
-  summary: { data: null, timestamp: 0, ttl: 5 * 60 * 1000 }
-};
+// Range-aware in-memory cache for dashboard data
+// Key: range string (e.g. "today", "last_7d") → { data, timestamp }
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const summaryCache = new Map();
+const healthCache = new Map();
 
 app.get("/api/system/ai-check", (req, res) => {
   res.json({
@@ -285,12 +285,11 @@ app.get("/api/dashboard/summary", async (req, res) => {
   try {
     const range = req.query.range || "today";
 
-    // Check Cache
-    if (dashboardCache.summary.data &&
-      dashboardCache.summary.timestamp > (Date.now() - dashboardCache.summary.ttl) &&
-      dashboardCache.summary.range === range) {
+    // Check range-aware cache
+    const cachedSummary = summaryCache.get(range);
+    if (cachedSummary && Date.now() - cachedSummary.timestamp < CACHE_TTL) {
       console.log("🚀 Serving dashboard summary from cache");
-      return res.json(dashboardCache.summary.data);
+      return res.json(cachedSummary.data);
     }
 
     // Map range to alert cutoff (consistent with account-health)
@@ -331,37 +330,32 @@ app.get("/api/dashboard/summary", async (req, res) => {
 
     if (pauseError) throw pauseError;
 
-    const { fetchAdInsights } = require("./services/metaService");
+    // Read CPL logs and campaign thresholds from Supabase in parallel
+    // (engine already writes this data every 4 hours — no Meta API call needed)
+    const [thresholdsRes, recentLogsRes] = await Promise.all([
+      supabase.from("campaign_thresholds").select("ad_account_id, campaign_name, cpl_threshold"),
+      supabase.from("cpl_logs")
+        .select("calculated_cpl, campaign_name, ad_account_id, ad_accounts!inner(cpl_threshold, is_active)")
+        .eq("ad_accounts.is_active", true)
+        .gte("checked_at", alertCutoff)
+    ]);
 
-    const { data: campaignThresholds, error: thresholdsError } = await supabase
-      .from("campaign_thresholds")
-      .select("*");
+    if (thresholdsRes.error) throw thresholdsRes.error;
+    if (recentLogsRes.error) throw recentLogsRes.error;
 
-    if (thresholdsError) throw thresholdsError;
+    const campaignThresholds = thresholdsRes.data || [];
+    const recentLogs = recentLogsRes.data || [];
 
     let adsAtRiskCount = 0;
-
-    // Parallel fetching for risk calculation
-    const insightsResults = await Promise.all(
-      accounts.map(acc => fetchAdInsights(acc.account_id, range).catch(() => []))
-    );
-
-    insightsResults.forEach((ads, index) => {
-      const account = accounts[index];
-      if (!ads || !Array.isArray(ads)) return;
-
-      ads.forEach(ad => {
-        if (ad.leads === 0) return;
-        const campaignT = campaignThresholds.find(
-          t => t.ad_account_id === account.id && t.campaign_name === ad.campaign_name
-        );
-        const threshold = campaignT ? campaignT.cpl_threshold : account.cpl_threshold;
-        if (!threshold) return;
-        const cpl = ad.spend / ad.leads;
-        if (cpl > (threshold * 0.8) && cpl <= threshold) {
-          adsAtRiskCount++;
-        }
-      });
+    recentLogs.forEach(log => {
+      const campaignT = campaignThresholds.find(
+        t => t.ad_account_id === log.ad_account_id && t.campaign_name === log.campaign_name
+      );
+      const threshold = campaignT ? campaignT.cpl_threshold : log.ad_accounts.cpl_threshold;
+      if (!threshold) return;
+      if (log.calculated_cpl > threshold * 0.8 && log.calculated_cpl <= threshold) {
+        adsAtRiskCount++;
+      }
     });
 
     const summaryData = {
@@ -372,10 +366,7 @@ app.get("/api/dashboard/summary", async (req, res) => {
       ads_at_risk: adsAtRiskCount || 0
     };
 
-    // Update Cache
-    dashboardCache.summary.data = summaryData;
-    dashboardCache.summary.timestamp = Date.now();
-    dashboardCache.summary.range = range;
+    summaryCache.set(range, { data: summaryData, timestamp: Date.now() });
 
     res.json(summaryData);
 
@@ -457,14 +448,12 @@ app.get("/api/dashboard/urgent-alerts", async (req, res) => {
 app.get("/api/dashboard/account-health", async (req, res) => {
   try {
     const range = req.query.range || "today";
-    const cacheKey = `health_${range}`;
 
-    // Check cache
-    if (dashboardCache.health.data &&
-      dashboardCache.health.timestamp > (Date.now() - dashboardCache.health.ttl) &&
-      dashboardCache.health.range === range) {
+    // Check range-aware cache
+    const cachedHealth = healthCache.get(range);
+    if (cachedHealth && Date.now() - cachedHealth.timestamp < CACHE_TTL) {
       console.log("🚀 Serving account health from cache");
-      return res.json(dashboardCache.health.data);
+      return res.json(cachedHealth.data);
     }
 
     // Map range to alert cutoff (milliseconds)
@@ -500,76 +489,86 @@ app.get("/api/dashboard/account-health", async (req, res) => {
       alertCounts[a.ad_account_id]++;
     });
 
-    const { fetchAdInsights } = require("./services/metaService");
+    // Fetch CPL logs from Supabase for 3 time windows in parallel
+    // (engine writes this data every 4 hours — no Meta API call needed)
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const sevenDaysCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const accountIds = accounts.map(a => a.id);
 
-    // PARALLEL FETCHING: Process all accounts simultaneously
-    const healthData = await Promise.all(accounts.map(async (acc) => {
-      try {
-        const campaignIds = await getActiveCampaignIds(acc.account_id);
+    const [rangeLogsRes, sevenDayLogsRes, monthLogsRes] = await Promise.all([
+      supabase.from("cpl_logs")
+        .select("ad_account_id, spend, leads, calculated_cpl")
+        .in("ad_account_id", accountIds)
+        .gte("checked_at", alertCutoff),
+      supabase.from("cpl_logs")
+        .select("ad_account_id, spend, leads")
+        .in("ad_account_id", accountIds)
+        .gte("checked_at", sevenDaysCutoff),
+      supabase.from("cpl_logs")
+        .select("ad_account_id, spend")
+        .in("ad_account_id", accountIds)
+        .gte("checked_at", monthStart)
+    ]);
 
-        const [rangeInsights, sevenDayInsights, monthInsights] = await Promise.all([
-          fetchAdInsights(acc.account_id, range, campaignIds),
-          fetchAdInsights(acc.account_id, "last_7d", campaignIds),
-          fetchAdInsights(acc.account_id, "this_month", campaignIds)
-        ]);
+    if (rangeLogsRes.error) throw rangeLogsRes.error;
+    if (sevenDayLogsRes.error) throw sevenDayLogsRes.error;
+    if (monthLogsRes.error) throw monthLogsRes.error;
 
-        const aggregate = (insights) => {
-          if (!insights) return { spend: 0, leads: 0, cpl: 0 };
-          const spend = insights.reduce((sum, item) => sum + item.spend, 0);
-          const leads = insights.reduce((sum, item) => sum + item.leads, 0);
-          const cpl = leads > 0 ? spend / leads : 0;
-          return { spend, leads, cpl };
-        };
+    // Aggregate logs by account
+    const aggregateByAccount = (logs) => {
+      const byAccount = {};
+      (logs || []).forEach(log => {
+        if (!byAccount[log.ad_account_id]) byAccount[log.ad_account_id] = { spend: 0, leads: 0 };
+        byAccount[log.ad_account_id].spend += log.spend || 0;
+        byAccount[log.ad_account_id].leads += log.leads || 0;
+      });
+      return byAccount;
+    };
 
-        const currentRangeData = aggregate(rangeInsights);
-        const sevenDayData = aggregate(sevenDayInsights);
-        const monthData = aggregate(monthInsights);
-        const activeAlerts = alertCounts[acc.id] || 0;
+    const rangeByAccount = aggregateByAccount(rangeLogsRes.data);
+    const sevenDayByAccount = aggregateByAccount(sevenDayLogsRes.data);
+    const monthByAccount = aggregateByAccount(monthLogsRes.data);
 
-        let healthScore = 100;
-        healthScore -= (activeAlerts * 10);
-        let status = "HEALTHY";
+    const healthData = accounts.map(acc => {
+      const rangeData = rangeByAccount[acc.id] || { spend: 0, leads: 0 };
+      const sevenDayData = sevenDayByAccount[acc.id] || { spend: 0, leads: 0 };
+      const monthData = monthByAccount[acc.id] || { spend: 0, leads: 0 };
+      const activeAlerts = alertCounts[acc.id] || 0;
 
-        if (acc.cpl_threshold && currentRangeData.leads > 0 && currentRangeData.cpl > acc.cpl_threshold) {
-          healthScore -= 20;
-          if (currentRangeData.cpl > acc.cpl_threshold * 1.5) status = "CRITICAL";
-          else status = "WATCH";
-        }
+      const avgCplToday = rangeData.leads > 0 ? rangeData.spend / rangeData.leads : 0;
+      const avgCpl7d = sevenDayData.leads > 0 ? sevenDayData.spend / sevenDayData.leads : 0;
 
-        if (activeAlerts > 0) status = status === "CRITICAL" ? "CRITICAL" : "WATCH";
-        if (activeAlerts >= 3) status = "CRITICAL";
+      let healthScore = 100;
+      healthScore -= (activeAlerts * 10);
+      let status = "HEALTHY";
 
-        healthScore = Math.max(0, Math.min(100, healthScore));
-        if (status === "CRITICAL") healthScore = Math.min(healthScore, 60);
-
-        return {
-          id: acc.id,
-          account_id: acc.account_id,
-          account_name: acc.account_name,
-          health_score: healthScore,
-          active_alerts: activeAlerts,
-          spend_today: parseFloat(currentRangeData.spend.toFixed(2)),
-          leads_today: currentRangeData.leads,
-          avg_cpl_today: parseFloat(currentRangeData.cpl.toFixed(2)),
-          avg_cpl_7d: parseFloat(sevenDayData.cpl.toFixed(2)),
-          spend_this_month: parseFloat(monthData.spend.toFixed(2)),
-          status
-        };
-      } catch (err) {
-        console.error(`Error processing health for account ${acc.account_name}:`, err.message);
-        return {
-          id: acc.id,
-          account_name: acc.account_name,
-          health_score: 0,
-          active_alerts: 0,
-          spend_today: 0,
-          leads_today: 0,
-          avg_cpl_today: 0,
-          avg_cpl_7d: 0,
-          status: "UNKNOWN"
-        };
+      if (acc.cpl_threshold && rangeData.leads > 0 && avgCplToday > acc.cpl_threshold) {
+        healthScore -= 20;
+        if (avgCplToday > acc.cpl_threshold * 1.5) status = "CRITICAL";
+        else status = "WATCH";
       }
-    }));
+
+      if (activeAlerts > 0) status = status === "CRITICAL" ? "CRITICAL" : "WATCH";
+      if (activeAlerts >= 3) status = "CRITICAL";
+
+      healthScore = Math.max(0, Math.min(100, healthScore));
+      if (status === "CRITICAL") healthScore = Math.min(healthScore, 60);
+
+      return {
+        id: acc.id,
+        account_id: acc.account_id,
+        account_name: acc.account_name,
+        health_score: healthScore,
+        active_alerts: activeAlerts,
+        spend_today: parseFloat(rangeData.spend.toFixed(2)),
+        leads_today: rangeData.leads,
+        avg_cpl_today: parseFloat(avgCplToday.toFixed(2)),
+        avg_cpl_7d: parseFloat(avgCpl7d.toFixed(2)),
+        spend_this_month: parseFloat((monthData.spend || 0).toFixed(2)),
+        status
+      };
+    });
 
     healthData.sort((a, b) => {
       const statusOrder = { "CRITICAL": 0, "WATCH": 1, "HEALTHY": 2, "UNKNOWN": 3 };
@@ -579,10 +578,7 @@ app.get("/api/dashboard/account-health", async (req, res) => {
       return b.health_score - a.health_score;
     });
 
-    // Update Cache
-    dashboardCache.health.data = healthData;
-    dashboardCache.health.timestamp = Date.now();
-    dashboardCache.health.range = range;
+    healthCache.set(range, { data: healthData, timestamp: Date.now() });
 
     res.json(healthData);
 
