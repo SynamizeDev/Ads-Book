@@ -115,9 +115,10 @@ async function fetchAdInsights(accountId, datePreset = "maximum", cachedCampaign
       }
 
       return {
+        campaign_id: item.campaign_id || null,
         campaign_name: item.campaign_name || "N/A",
-        adset_name: item.adset_name || "N/A",
         adset_id: item.adset_id || null,
+        adset_name: item.adset_name || "N/A",
         ad_name: item.ad_name || "N/A",
         ad_id: item.ad_id || null,
         spend: parseFloat(item.spend) || 0,

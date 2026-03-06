@@ -387,10 +387,13 @@ app.get("/api/dashboard/urgent-alerts", async (req, res) => {
         id,
         alert_type,
         campaign_name,
+        campaign_meta_id,
         adset_name,
+        adset_meta_id,
         ad_name,
+        ad_meta_id,
         created_at,
-        ad_accounts!inner(account_name, is_active)
+        ad_accounts!inner(account_name, account_id, is_active)
       `)
       .eq("ad_accounts.is_active", true)
       .gte("created_at", sixHoursAgo)
@@ -430,7 +433,13 @@ app.get("/api/dashboard/urgent-alerts", async (req, res) => {
         id: alert.id,
         severity,
         account_name: alert.ad_accounts.account_name,
+        account_meta_id: alert.ad_accounts.account_id || null,
         campaign_name: alert.campaign_name,
+        campaign_meta_id: alert.campaign_meta_id || null,
+        adset_name: alert.adset_name || null,
+        adset_meta_id: alert.adset_meta_id || null,
+        ad_name: alert.ad_name || null,
+        ad_meta_id: alert.ad_meta_id || null,
         issue_type: issueType,
         created_at: alert.created_at
       };
@@ -740,7 +749,7 @@ app.get("/api/alerts", async (req, res) => {
 
     let query = supabase
       .from("alert_logs")
-      .select("*, ad_accounts!inner(is_active)")
+      .select("*, ad_accounts!inner(account_id, is_active)")
       .eq("ad_accounts.is_active", true);
 
     if (finalUuid) {
@@ -1586,7 +1595,7 @@ async function runAlertEngine() {
 
       // Process each ad
       for (const ad of ads) {
-        const { campaign_name, adset_name, ad_name, ad_id, spend, leads } = ad;
+        const { campaign_id, campaign_name, adset_id, adset_name, ad_name, ad_id, spend, leads } = ad;
 
         // Skip ads with no spend (Meta filter handled ACTIVE status)
         if (spend === 0) {
@@ -1693,6 +1702,8 @@ async function runAlertEngine() {
               agency_id: account.agency_id,
               alert_type: alertType,
               ad_meta_id: ad_id,
+              campaign_meta_id: campaign_id || null,
+              adset_meta_id: adset_id || null,
               campaign_name,
               adset_name,
               ad_name,
