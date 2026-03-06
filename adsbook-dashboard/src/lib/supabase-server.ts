@@ -1,5 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { cache } from "react";
+import type { User } from "@supabase/supabase-js";
 
 export async function createClient() {
     const cookieStore = await cookies();
@@ -25,3 +27,18 @@ export async function createClient() {
         }
     );
 }
+
+/**
+ * Returns the authenticated user for the current request.
+ * Wrapped in React.cache() so it executes only once per server request
+ * even when called from both layout.tsx and page.tsx simultaneously.
+ */
+export const getCachedUser = cache(async (): Promise<User | null> => {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        return user;
+    } catch {
+        return null;
+    }
+});

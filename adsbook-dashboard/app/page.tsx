@@ -2,7 +2,7 @@ import { getAccounts, getLatestCplLogs, getDashboardSummary, getUrgentAlerts, ge
 import Link from "next/link";
 import SystemStatusWidget from "./components/SystemStatusWidget";
 import RefreshTrigger from "./components/RefreshTrigger";
-import { createClient } from "@/lib/supabase-server";
+import { getCachedUser } from "@/lib/supabase-server";
 
 function WelcomeBanner({ displayName }: { displayName: string }) {
   const now = new Date();
@@ -263,13 +263,12 @@ function ExecutiveSummary({ summary }: { summary: DashboardSummary }) {
 export default async function Home() {
   const range = "last_30d";
 
-  // Get logged-in user's name
+  // getCachedUser() reuses the same Auth result already fetched by layout.tsx
+  // in the same request — zero extra network round-trip
   let displayName = "User";
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCachedUser();
     if (user?.email) {
-      // Capitalize first letter of the part before @
       const namePart = user.email.split("@")[0];
       displayName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
     }
@@ -299,7 +298,7 @@ export default async function Home() {
 
   return (
     <div className="flex flex-col min-h-screen pb-20">
-      <RefreshTrigger intervalMs={120000} />
+      <RefreshTrigger intervalMs={900000} />
       <div className="px-10 py-10 max-w-[1400px] mx-auto space-y-10 w-full">
 
         {/* Header */}

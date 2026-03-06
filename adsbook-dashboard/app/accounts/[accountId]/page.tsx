@@ -10,7 +10,6 @@ import {
     toggleAutoPause,
     getAccountBudget,
     getCampaignThresholds,
-    getActiveAdIds,
     updateAccount,
     Account,
     CplLog,
@@ -450,7 +449,6 @@ export default function AccountPage() {
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [budget, setBudget] = useState<BudgetInfo | null>(null);
     const [campaignThresholds, setCampaignThresholds] = useState<CampaignThreshold[]>([]);
-    const [activeAdIds, setActiveAdIds] = useState<Set<string>>(new Set());
     const [collapsedItems, setCollapsedItems] = useState<Set<string>>(new Set());
 
     const toggleItem = (id: string) => { const s = new Set(collapsedItems); if (s.has(id)) s.delete(id); else s.add(id); setCollapsedItems(s); };
@@ -488,20 +486,13 @@ export default function AccountPage() {
                     // Use the Meta Account ID for all API calls
                     const metaAccountId = matchedAccount.account_id;
 
-                    const [logsResponse, budgetRes, threshRes, activeAdsRes] = await Promise.all([
-                        getAccountCplLogs(metaAccountId, 1000),
+                    const [logsResponse, budgetRes, threshRes] = await Promise.all([
+                        getAccountCplLogs(metaAccountId, 100),
                         getAccountBudget(metaAccountId),
-                        getCampaignThresholds(metaAccountId),
-                        getActiveAdIds(metaAccountId)
+                        getCampaignThresholds(metaAccountId)
                     ]);
 
                     if (logsResponse.success) { setCplLogs(logsResponse.data || []); setLastUpdated(new Date()); }
-
-                    // Set active ad IDs for filtering
-                    if (activeAdsRes.success && activeAdsRes.data) {
-                        setActiveAdIds(new Set(activeAdsRes.data));
-                    }
-
                     if (budgetRes.success) setBudget(budgetRes.data || null);
                     if (threshRes.success) setCampaignThresholds(threshRes.data || []);
                 }
@@ -521,12 +512,8 @@ export default function AccountPage() {
         if (sortedLogs.length > 0) {
             const latestTime = new Date(sortedLogs[0].checked_at).getTime();
             const cutoff = latestTime - (20 * 1000);
-            let freshLogs = sortedLogs.filter(log => new Date(log.checked_at).getTime() > cutoff);
-
-            // Filter by active ads if we have the list
-            if (activeAdIds.size > 0) {
-                freshLogs = freshLogs.filter(log => activeAdIds.has(log.ad_meta_id));
-            }
+            // Only show ads from the most recent engine run (within 20s of latest entry)
+            const freshLogs = sortedLogs.filter(log => new Date(log.checked_at).getTime() > cutoff);
 
             for (const log of freshLogs) {
                 if (processedAdIds.has(log.ad_meta_id)) continue;
@@ -574,7 +561,7 @@ export default function AccountPage() {
                 totalSpend: allAds.reduce((sum, a) => sum + a.spend, 0),
             }
         };
-    }, [cplLogs, accounts, activeAdIds, campaignThresholds]);
+    }, [cplLogs, accounts, campaignThresholds]);
 
     const top3WorstAds = [...flatAds].sort((a, b) => {
         if (a.status === "CRITICAL" && b.status !== "CRITICAL") return -1;
@@ -599,7 +586,7 @@ export default function AccountPage() {
 
     return (
         <div className="min-h-screen pb-20">
-            <RefreshTrigger intervalMs={60000} />
+            <RefreshTrigger intervalMs={300000} />
 
             <div className="max-w-[1400px] mx-auto px-10 pt-8">
                 <nav className="flex items-center gap-2 text-[13px] text-muted mb-6">

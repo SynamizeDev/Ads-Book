@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
-import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -12,13 +11,7 @@ export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const router = useRouter();
     const supabase = createClient();
-
-    // Prefetch home page to speed up redirection
-    useEffect(() => {
-        router.prefetch("/");
-    }, [router]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -31,8 +24,10 @@ export default function LoginPage() {
                 password,
             });
             if (error) throw error;
-            router.push("/");
-            router.refresh();
+            // Hard navigation ensures middleware picks up the new session cookie
+            // in a single clean request — avoids the double-SSR caused by
+            // calling router.push() + router.refresh() together.
+            window.location.href = "/";
         } catch (err: any) {
             setError(err.message || "An error occurred");
             setLoading(false); // Only stop loading if there's an error, otherwise the overlay stays until redirect
@@ -86,9 +81,9 @@ export default function LoginPage() {
                 <div className="text-center mb-10">
                     <div className="inline-flex items-center justify-center mb-8">
                         <img
-                            src="/logo.jpg"
+                            src="/logo-light.svg"
                             alt="Ads Book Logo"
-                            className="h-24 w-auto object-contain"
+                            className="h-10 w-auto object-contain"
                         />
                     </div>
                     <p className="text-slate-400 text-[14px] font-medium tracking-wide uppercase opacity-70">Ad Performance Monitor</p>
@@ -96,7 +91,7 @@ export default function LoginPage() {
 
                 {/* Login Card */}
                 <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[28px] p-10 shadow-2xl">
-                    <h2 className="text-xl font-bold text-white mb-1">Welcome back</h2>
+                    <h2 className="text-xl font-bold text-white mb-1">Welcome</h2>
                     <p className="text-slate-400 text-[14px] mb-8">Sign in to your dashboard</p>
 
                     <form onSubmit={handleSubmit} className="space-y-5">
@@ -163,9 +158,6 @@ export default function LoginPage() {
                     </form>
                 </div>
 
-                <p className="text-center text-[12px] text-slate-600 mt-8">
-                    Powered by Supabase Auth
-                </p>
             </div>
         </div>
     );

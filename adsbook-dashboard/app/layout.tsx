@@ -7,7 +7,6 @@ import { ThemeProvider } from "./components/ThemeProvider";
 import ThemeToggle from "./components/ThemeToggle";
 import SplashScreen from "./components/SplashScreen";
 import LogoutIcon from "./components/LogoutIcon";
-import { createClient } from "@/lib/supabase-server";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,6 +32,7 @@ export const metadata: Metadata = {
 };
 
 import { Account, getAgencyProfile, getAccounts as fetchAccounts, API_URL } from "@/lib/api";
+import { getCachedUser } from "@/lib/supabase-server";
 
 async function getAccounts(): Promise<Account[]> {
   try {
@@ -56,17 +56,11 @@ async function getProfile() {
 }
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  // Get authenticated user
-  let userEmail = "";
-  let isAuthenticated = false;
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    userEmail = user?.email || "";
-    isAuthenticated = !!user;
-  } catch {
-    // Not authenticated
-  }
+  // getCachedUser() is memoized per-request via React.cache() —
+  // calling it here and in page.tsx only results in one Auth round-trip
+  const user = await getCachedUser();
+  const userEmail = user?.email || "";
+  const isAuthenticated = !!user;
 
   // For unauthenticated users (login page), render minimal layout
   if (!isAuthenticated) {

@@ -31,21 +31,19 @@ export default function SplashScreen() {
                 }`}
         >
             <div className="flex flex-col items-center gap-5">
-                {/* Logo Mark */}
+                {/* Brand Illustration */}
                 <div
                     className={`transition-all duration-700 ${fadeOut ? "scale-110 opacity-0" : "scale-100 opacity-100"
                         }`}
                 >
-                    <div className="relative w-80 h-24 flex items-center justify-center">
-                        <img
-                            src="/logo.jpg"
-                            alt="Ads Book"
-                            className="w-full h-full object-contain"
-                        />
-                    </div>
+                    <img
+                        src="/Group 427320665.svg"
+                        alt="Ads Book"
+                        className="w-64 h-auto object-contain"
+                    />
                 </div>
 
-                {/* Brand Name Hidden (already in logo) */}
+                {/* Tagline */}
                 <div
                     className={`text-center transition-all duration-500 delay-100 ${fadeOut ? "translate-y-2 opacity-0" : "translate-y-0 opacity-100"
                         }`}
