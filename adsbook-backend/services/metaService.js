@@ -41,9 +41,13 @@ async function getActiveCampaignIds(accountId) {
  * Fetch ad-level insights from Meta (Facebook) for a specific ad account
  * @param {string} accountId - Ad account ID (without act_ prefix)
  * @param {string} datePreset - Meta API date_preset (e.g., "maximum", "today", "last_7d")
+ * @param {Array|null} cachedCampaignIds - Pre-fetched campaign IDs to avoid redundant Meta calls
+ * @param {{ since: string, until: string }|null} timeRange - Custom date range (YYYY-MM-DD). When provided, overrides datePreset.
+ * @param {boolean} activeOnly - When true (default), filters to currently ACTIVE campaigns/adsets/ads only.
+ *   Pass false for historical reports (e.g. weekly report) so paused/off campaigns from the period are included.
  * @returns {Promise<Array>} - Array of ad insights with campaign, adset, ad details and metrics
  */
-async function fetchAdInsights(accountId, datePreset = "maximum", cachedCampaignIds = null) {
+async function fetchAdInsights(accountId, datePreset = "maximum", cachedCampaignIds = null, timeRange = null, activeOnly = true) {
   try {
     const accessToken = process.env.META_ACCESS_TOKEN;
 
@@ -52,32 +56,41 @@ async function fetchAdInsights(accountId, datePreset = "maximum", cachedCampaign
       return null;
     }
 
-    // Step 1: Get Campaign IDs (use cached value if provided to avoid redundant Meta calls)
-    const campaignIds = cachedCampaignIds !== null ? cachedCampaignIds : await getActiveCampaignIds(accountId);
-
-    if (campaignIds.length === 0) {
-      return [];
-    }
-
     const apiUrl = `https://graph.facebook.com/v24.0/act_${accountId}/insights`;
 
-    // Fetch insights for all ads in these campaigns (STRICT ACTIVE HIERARCHY)
-    const filtering = [
-      { field: "campaign.id", operator: "IN", value: campaignIds },
-      { field: "adset.effective_status", operator: "IN", value: ["ACTIVE"] }, // Ensure parent ad set is active
-      { field: "ad.effective_status", operator: "IN", value: ["ACTIVE"] }    // Ensure individual ad is active
-    ];
+    let filtering = [];
 
-    const response = await axios.get(apiUrl, {
-      params: {
-        level: "ad",
-        date_preset: datePreset,
-        fields: "campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,actions",
-        filtering: JSON.stringify(filtering),
-        access_token: accessToken,
-        limit: 500
-      },
-    });
+    if (activeOnly) {
+      // Alert engine mode: only currently ACTIVE campaigns/adsets/ads
+      const campaignIds = cachedCampaignIds !== null ? cachedCampaignIds : await getActiveCampaignIds(accountId);
+      if (campaignIds.length === 0) return [];
+
+      filtering = [
+        { field: "campaign.id", operator: "IN", value: campaignIds },
+        { field: "adset.effective_status", operator: "IN", value: ["ACTIVE"] },
+        { field: "ad.effective_status", operator: "IN", value: ["ACTIVE"] }
+      ];
+    }
+    // Historical mode (activeOnly = false): no status filters — let time_range return all
+    // ads that had any activity in the period, regardless of current status.
+
+    const params = {
+      level: "ad",
+      // Use time_range for custom date windows (e.g. last week), fall back to date_preset
+      ...(timeRange
+        ? { time_range: JSON.stringify(timeRange) }
+        : { date_preset: datePreset }
+      ),
+      fields: "campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,actions",
+      access_token: accessToken,
+      limit: 500
+    };
+
+    if (filtering.length > 0) {
+      params.filtering = JSON.stringify(filtering);
+    }
+
+    const response = await axios.get(apiUrl, { params });
 
     const data = response.data.data;
 

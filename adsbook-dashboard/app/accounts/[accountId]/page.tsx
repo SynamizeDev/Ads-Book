@@ -8,6 +8,7 @@ import {
     getAccountAlerts,
     updateAccountThreshold,
     toggleAutoPause,
+    toggleWeeklyReport,
     getAccountBudget,
     getCampaignThresholds,
     updateAccount,
@@ -140,6 +141,44 @@ function AutoPauseToggle({ account, onToggle, compact = false }: { account: Acco
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </div>
+    );
+}
+
+/* ────── Weekly Report Toggle ────── */
+function WeeklyReportToggle({ account, onToggle }: { account: Account; onToggle: (enabled: boolean) => void }) {
+    const [loading, setLoading] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+    const enabled = account.include_in_weekly_report ?? true;
+
+    const handleToggle = async () => {
+        setLoading(true);
+        try {
+            const res = await toggleWeeklyReport(account.account_id, !enabled);
+            if (res.success) {
+                onToggle(!enabled);
+                setToast({ message: `Weekly report ${!enabled ? "enabled" : "disabled"}`, type: "success" });
+            } else {
+                setToast({ message: res.error || "Failed to update", type: "error" });
+            }
+        } catch {
+            setToast({ message: "Network error", type: "error" });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <>
+            <button
+                onClick={handleToggle}
+                disabled={loading}
+                className={`relative w-12 h-6 rounded-full transition-all duration-300 focus:outline-none ${enabled ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]' : 'bg-border'} ${loading ? 'opacity-60' : ''}`}
+                aria-label="Toggle weekly report"
+            >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-all duration-300 ${enabled ? 'translate-x-6' : 'translate-x-0'}`} />
+            </button>
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        </>
     );
 }
 
@@ -349,14 +388,17 @@ function CplThresholdControl({ account, onUpdate }: { account: Account; onUpdate
 }
 
 /* ────── Account Alert History ────── */
+const ALERTS_PER_PAGE = 10;
+
 function AccountAlertHistory({ accountId }: { accountId: string }) {
     const [alerts, setAlerts] = useState<AlertLog[]>([]);
     const [loading, setLoading] = useState(true);
+    const [page, setPage] = useState(1);
 
     useEffect(() => {
         async function load() {
             try {
-                const res = await getAccountAlerts(accountId, 20);
+                const res = await getAccountAlerts(accountId, 100);
                 if (res.success && res.data) setAlerts(res.data);
             } catch (e) { console.error(e); }
             finally { setLoading(false); }
@@ -389,6 +431,10 @@ function AccountAlertHistory({ accountId }: { accountId: string }) {
         );
     }
 
+    const totalPages = Math.ceil(alerts.length / ALERTS_PER_PAGE);
+    const start = (page - 1) * ALERTS_PER_PAGE;
+    const pageAlerts = alerts.slice(start, start + ALERTS_PER_PAGE);
+
     return (
         <div className="bg-card rounded-[20px] overflow-hidden shadow-sm border border-border">
             <div className="overflow-x-auto">
@@ -403,7 +449,7 @@ function AccountAlertHistory({ accountId }: { accountId: string }) {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                        {alerts.map((alert) => (
+                        {pageAlerts.map((alert) => (
                             <tr key={alert.id} className="hover:bg-hover-bg transition-colors">
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="text-[13px] font-medium text-foreground tabular-nums">
@@ -433,6 +479,80 @@ function AccountAlertHistory({ accountId }: { accountId: string }) {
                     </tbody>
                 </table>
             </div>
+
+            {/* Pagination Footer */}
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-hover-bg">
+                <p className="text-[12px] text-muted tabular-nums">
+                    Showing <span className="font-medium text-foreground">{start + 1}–{Math.min(start + ALERTS_PER_PAGE, alerts.length)}</span> of <span className="font-medium text-foreground">{alerts.length}</span> alerts
+                </p>
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => setPage(1)}
+                        disabled={page === 1}
+                        className="p-1.5 rounded-[8px] text-muted hover:text-foreground hover:bg-card disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="First page"
+                    >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7M19 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+                    <button
+                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                        disabled={page === 1}
+                        className="p-1.5 rounded-[8px] text-muted hover:text-foreground hover:bg-card disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="Previous page"
+                    >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+
+                    {/* Page number pills */}
+                    <div className="flex items-center gap-1 mx-1">
+                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                            .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                            .reduce<(number | "…")[]>((acc, p, idx, arr) => {
+                                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("…");
+                                acc.push(p);
+                                return acc;
+                            }, [])
+                            .map((item, idx) =>
+                                item === "…" ? (
+                                    <span key={`ellipsis-${idx}`} className="w-8 text-center text-[12px] text-muted">…</span>
+                                ) : (
+                                    <button
+                                        key={item}
+                                        onClick={() => setPage(item as number)}
+                                        className={`w-8 h-8 rounded-[8px] text-[12px] font-medium transition-colors ${page === item ? 'bg-foreground text-background' : 'text-muted hover:text-foreground hover:bg-card'}`}
+                                    >
+                                        {item}
+                                    </button>
+                                )
+                            )}
+                    </div>
+
+                    <button
+                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                        disabled={page === totalPages}
+                        className="p-1.5 rounded-[8px] text-muted hover:text-foreground hover:bg-card disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="Next page"
+                    >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                    <button
+                        onClick={() => setPage(totalPages)}
+                        disabled={page === totalPages}
+                        className="p-1.5 rounded-[8px] text-muted hover:text-foreground hover:bg-card disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="Last page"
+                    >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }
@@ -456,6 +576,9 @@ export default function AccountPage() {
     const handleThresholdUpdate = (id: string, newVal: number) => { setAccounts(prev => prev.map(acc => acc.id === id ? { ...acc, cpl_threshold: newVal } : acc)); };
     const handleAutoPauseToggle = (enabled: boolean) => {
         setAccounts(prev => prev.map(acc => acc.id === accountId ? { ...acc, auto_pause_enabled: enabled } : acc));
+    };
+    const handleWeeklyReportToggle = (enabled: boolean) => {
+        setAccounts(prev => prev.map(acc => acc.id === accountId ? { ...acc, include_in_weekly_report: enabled } : acc));
     };
 
     const handleLinksUpdate = (id: string, drive?: string, sheet?: string) => {
@@ -677,6 +800,19 @@ export default function AccountPage() {
                                     </p>
                                 </div>
                                 <AutoPauseToggle account={currentAccount} onToggle={handleAutoPauseToggle} compact />
+                            </div>
+
+                            <div className="border-t border-border" />
+
+                            {/* Weekly Report row */}
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-[13px] text-muted font-medium">Weekly Report</p>
+                                    <p className={`text-[11px] font-semibold mt-0.5 ${(currentAccount.include_in_weekly_report ?? true) ? "text-green-500" : "text-muted"}`}>
+                                        {(currentAccount.include_in_weekly_report ?? true) ? "Included" : "Excluded"}
+                                    </p>
+                                </div>
+                                <WeeklyReportToggle account={currentAccount} onToggle={handleWeeklyReportToggle} />
                             </div>
                         </div>
                     )}

@@ -25,6 +25,7 @@ export interface Account {
   cpl_threshold: number;
   auto_pause_enabled: boolean;
   is_active: boolean;
+  include_in_weekly_report: boolean;
   drive_link?: string;
   sheet_link?: string;
   created_at?: string;
@@ -296,6 +297,13 @@ export async function toggleAutoPause(accountId: string, enabled: boolean): Prom
   });
 }
 
+export async function toggleWeeklyReport(accountId: string, enabled: boolean): Promise<ApiResponse<{ include_in_weekly_report: boolean }>> {
+  return fetchApi<{ include_in_weekly_report: boolean }>(`/api/accounts/${accountId}/weekly-report`, {
+    method: "PATCH",
+    body: JSON.stringify({ include_in_weekly_report: enabled }),
+  });
+}
+
 export async function getAccountHealth(range: string = "today"): Promise<ApiResponse<AccountHealth[]>> {
   return fetchApi<AccountHealth[]>(`/api/dashboard/account-health?range=${range}`, { next: { revalidate: 900 } });
 }
@@ -382,4 +390,18 @@ export async function enhanceText(text: string, mode: "full" | "basic" = "full")
     method: "POST",
     body: JSON.stringify({ text, mode }),
   });
+}
+
+export async function triggerAlertEngine(): Promise<ApiResponse<{ message: string }>> {
+  const res = await fetch("/api/actions/run-alert-engine", { method: "POST" });
+  const data = await res.json();
+  if (!res.ok) return { success: false, error: data.error || `Error ${res.status}` };
+  return { success: true, data };
+}
+
+export async function triggerWeeklyReport(): Promise<ApiResponse<{ message: string }>> {
+  const res = await fetch("/api/actions/run-weekly-report", { method: "POST" });
+  const data = await res.json();
+  if (!res.ok) return { success: false, error: data.error || `Error ${res.status}` };
+  return { success: true, data };
 }

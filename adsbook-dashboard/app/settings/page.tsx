@@ -124,7 +124,7 @@ export default function SettingsPage() {
                                     <li>Total spend per account</li>
                                     <li>Total leads & average CPL</li>
                                     <li>Alert count for the week</li>
-                                    <li>Date range (Mon–Sun)</li>
+                                    <li>Date range (last week: Sun–Sat)</li>
                                 </ul>
                             </div>
                         )}

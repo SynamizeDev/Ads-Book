@@ -2,6 +2,7 @@ import { getAccounts, getLatestCplLogs, getDashboardSummary, getUrgentAlerts, ge
 import Link from "next/link";
 import SystemStatusWidget from "./components/SystemStatusWidget";
 import RefreshTrigger from "./components/RefreshTrigger";
+import QuickActionsPanel from "./components/QuickActionsPanel";
 import { getCachedUser } from "@/lib/supabase-server";
 
 function WelcomeBanner({ displayName }: { displayName: string }) {
@@ -161,7 +162,7 @@ function UrgentAlertsSection({ alerts }: { alerts: UrgentAlert[] }) {
               <span className={`px-2.5 py-1 rounded-full text-[11px] font-medium ${alert.severity === 'CRITICAL' ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'}`}>
                 {alert.severity === 'CRITICAL' ? 'Critical' : 'Warning'}
               </span>
-              <span className="text-xs text-muted tabular-nums">
+              <span className="text-xs text-muted tabular-nums" suppressHydrationWarning>
                 {new Date(alert.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
@@ -302,11 +303,12 @@ export default async function Home() {
       <div className="px-10 py-10 max-w-[1400px] mx-auto space-y-10 w-full">
 
         {/* Header */}
-        <div className="flex justify-between items-end pb-2">
+        <div className="flex justify-between items-center pb-2">
           <div>
             <h1 className="text-[26px] font-bold text-foreground mb-1 tracking-tight">Dashboard</h1>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <QuickActionsPanel />
             <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-4 py-2 rounded-full text-[13px] font-medium border border-green-100 dark:border-green-800">
               <span className="w-2 h-2 rounded-full bg-green-500" />
               Live

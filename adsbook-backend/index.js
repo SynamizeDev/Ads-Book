@@ -991,7 +991,7 @@ app.get("/api/settings", async (req, res) => {
       name: data.name || "",
       telegram_chat_id: data.telegram_chat_id || "",
       default_cpl_threshold: data.default_cpl_threshold || 40,
-      weekly_report_enabled: data.weekly_report_enabled || false,
+      weekly_report_enabled: data.weekly_report_enabled ?? false,
       id: data.id
     });
   } catch (error) {
@@ -1351,6 +1351,8 @@ app.get("/api/compare", async (req, res) => {
 async function runWeeklyReport() {
   console.log(`\n📊 Weekly Report started: ${new Date().toISOString()}`);
 
+  let chatId = null;
+
   try {
     // Get agency telegram chat ID
     const { data: agency, error: agencyError } = await supabase
@@ -1361,34 +1363,55 @@ async function runWeeklyReport() {
 
     if (agencyError || !agency) {
       console.log("⚠️ No agency found for weekly report");
-      return;
+      return { success: false, error: "No agency found" };
     }
 
     if (!agency.weekly_report_enabled) {
       console.log("ℹ️ Weekly report disabled");
-      return;
+      return { success: false, error: "Weekly report is disabled" };
     }
 
     if (!agency.telegram_chat_id) {
       console.log("⚠️ No Telegram chat ID configured");
-      return;
+      return { success: false, error: "No Telegram chat ID configured" };
     }
 
-    // Get date range (last 7 days)
-    const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const dateFrom = weekAgo.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    const dateTo = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    chatId = agency.telegram_chat_id;
 
-    // Get all active accounts
+    // Get "last week" date range: the most recently completed Sun–Sat week
+    // All math done in UTC to avoid timezone-shift bugs (e.g. IST UTC+5:30)
+    const now = new Date();
+    const dayOfWeekUTC = now.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+
+    // Last Saturday end of day (UTC)
+    const weekEnd = new Date(Date.UTC(
+      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - dayOfWeekUTC - 1,
+      23, 59, 59, 999
+    ));
+
+    // Last Sunday start of day (UTC) — 6 days before weekEnd
+    const weekStart = new Date(Date.UTC(
+      weekEnd.getUTCFullYear(), weekEnd.getUTCMonth(), weekEnd.getUTCDate() - 6,
+      0, 0, 0, 0
+    ));
+
+    const dateFrom = weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+    const dateTo = weekEnd.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+
+    // Format for Meta API time_range (YYYY-MM-DD, UTC)
+    const since = weekStart.toISOString().split("T")[0];
+    const until = weekEnd.toISOString().split("T")[0];
+
+    // Get active accounts opted into weekly report
     const { data: accounts, error: accError } = await supabase
       .from("ad_accounts")
       .select("*")
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .eq("include_in_weekly_report", true);
 
     if (accError || !accounts || accounts.length === 0) {
-      console.log("⚠️ No active accounts for weekly report");
-      return;
+      console.log("⚠️ No accounts opted into weekly report");
+      return { success: false, error: "No accounts included in weekly report" };
     }
 
     let reportMessage = `📊 <b>Weekly Report</b>\n📅 ${dateFrom} – ${dateTo}\n\n`;
@@ -1397,34 +1420,25 @@ async function runWeeklyReport() {
     let grandTotalLeads = 0;
 
     for (const account of accounts) {
-      const { data: logs } = await supabase
-        .from("cpl_logs")
-        .select("spend, leads, ad_meta_id, checked_at")
-        .eq("ad_account_id", account.id)
-        .gte("checked_at", weekAgo.toISOString());
+      // Fetch spend/leads directly from Meta API for the exact last-week date range.
+      // This is accurate regardless of whether the alert engine was running that week,
+      // and correctly includes accounts with zero leads but non-zero spend.
+      const ads = await fetchAdInsights(account.account_id, "maximum", null, { since, until }, false);
 
-      // Deduplicate: take latest snapshot per ad per day
-      const dayAdMap = {};
-      (logs || []).forEach(log => {
-        const date = new Date(log.checked_at).toISOString().split("T")[0];
-        const key = `${date}_${log.ad_meta_id}`;
-        dayAdMap[key] = log;
-      });
-
-      const dedupedLogs = Object.values(dayAdMap);
-      const totalSpend = dedupedLogs.reduce((s, l) => s + l.spend, 0);
-      const totalLeads = dedupedLogs.reduce((s, l) => s + l.leads, 0);
+      const totalSpend = (ads || []).reduce((s, a) => s + a.spend, 0);
+      const totalLeads = (ads || []).reduce((s, a) => s + a.leads, 0);
       const avgCpl = totalLeads > 0 ? totalSpend / totalLeads : 0;
 
       grandTotalSpend += totalSpend;
       grandTotalLeads += totalLeads;
 
-      // Get alert count for the week
+      // Get alert count for the week (still from alert_logs)
       const { count: alertCount } = await supabase
         .from("alert_logs")
         .select("*", { count: "exact", head: true })
         .eq("ad_account_id", account.id)
-        .gte("created_at", weekAgo.toISOString());
+        .gte("created_at", weekStart.toISOString())
+        .lte("created_at", weekEnd.toISOString());
 
       const escName = String(account.account_name || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -1451,12 +1465,21 @@ async function runWeeklyReport() {
       accounts: accounts.length
     });
 
+    return { success: true };
+
   } catch (error) {
     console.error("❌ Error in weekly report:", error.message);
+    if (chatId) {
+      await sendTelegramMessage(
+        chatId,
+        `⚠️ <b>Weekly Report Failed</b>\n\nAn error occurred while generating the weekly report:\n<code>${error.message}</code>\n\nPlease check your server logs.`
+      ).catch(() => {});
+    }
+    return { success: false, error: error.message };
   }
 }
 
-// Manual trigger for weekly report
+// Manual / external cron trigger for weekly report
 app.post("/run-weekly-report", async (req, res) => {
   const authHeader = req.headers["x-cron-secret"];
   const secret = process.env.CRON_SECRET;
@@ -1465,8 +1488,49 @@ app.post("/run-weekly-report", async (req, res) => {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  await runWeeklyReport();
+  const result = await runWeeklyReport();
+  if (!result.success) {
+    return res.status(500).json({ error: result.error });
+  }
   res.json({ success: true, message: "Weekly report triggered" });
+});
+
+// Per-account weekly report toggle
+app.patch("/api/accounts/:id/weekly-report", async (req, res) => {
+  try {
+    const accountId = req.params.id;
+    const { include_in_weekly_report } = req.body;
+
+    if (typeof include_in_weekly_report !== "boolean") {
+      return res.status(400).json({ error: "Invalid value. 'include_in_weekly_report' must be a boolean." });
+    }
+
+    const uuid = await resolveAccountUuid(accountId);
+    if (!uuid) {
+      return res.status(404).json({ error: "Account not found" });
+    }
+
+    const { data, error } = await supabase
+      .from("ad_accounts")
+      .update({ include_in_weekly_report })
+      .eq("id", uuid)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: "Account not found" });
+
+    console.log(`✅ Weekly report ${include_in_weekly_report ? "ENABLED" : "DISABLED"} for account ${accountId}`);
+
+    res.json({
+      success: true,
+      include_in_weekly_report: data.include_in_weekly_report,
+      message: `Weekly report ${include_in_weekly_report ? "enabled" : "disabled"} successfully`
+    });
+  } catch (error) {
+    console.error("❌ Error toggling weekly report:", error.message);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Cron job running every 15 minutes
@@ -1745,12 +1809,9 @@ if (process.env.NODE_ENV !== "production") {
   console.log("🚫 Internal cron disabled (Production Mode)");
 }
 
-// Weekly Report Cron — Every Sunday at 9:00 AM UTC
-cron.schedule("0 9 * * 0", async () => {
-  console.log("📊 Sunday Weekly Report cron triggered", new Date().toISOString());
-  await runWeeklyReport();
-});
-console.log("📊 Weekly Report cron scheduled (Sundays 9 AM UTC)");
+// Weekly report is triggered externally via POST /run-weekly-report
+// Configure your external cron (Render/Railway/GitHub Actions) to call it every Sunday at 9 AM UTC
+console.log("📊 Weekly Report endpoint ready — trigger via external cron (POST /run-weekly-report)");
 
 app.listen(PORT, () => {
   console.log("🚀 Ads Book Production Mode Enabled");
