@@ -140,9 +140,11 @@ app.post("/api/tools/enhance-text", async (req, res) => {
     const axios = require("axios");
 
     const restStrategies = [
+      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${rawApiKey}`, name: 'Gemini 2.5 Flash' },
       { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${rawApiKey}`, name: 'Gemini 2.0 Flash' },
-      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${rawApiKey}`, name: 'Gemini 1.5 Flash' },
-      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${rawApiKey}`, name: 'Gemini 1.5 Pro' }
+      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${rawApiKey}`, name: 'Gemini 2.0 Flash 001' },
+      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${rawApiKey}`, name: 'Gemini Flash Latest' },
+      { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-latest:generateContent?key=${rawApiKey}`, name: 'Gemini Pro Latest' }
     ];
 
     // Unified Prompt Strategy
