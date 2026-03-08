@@ -302,8 +302,15 @@ app.get("/api/dashboard/summary", async (req, res) => {
       maximum: 365 * 24 * 60 * 60 * 1000,
     };
 
-    const cutoffMs = rangeToMs[range] || rangeToMs.today;
-    const alertCutoff = new Date(Date.now() - cutoffMs).toISOString();
+    let alertCutoff;
+    if (range === "this_month") {
+      const now = new Date();
+      const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
+      alertCutoff = monthStart.toISOString();
+    } else {
+      const cutoffMs = rangeToMs[range] || rangeToMs.today;
+      alertCutoff = new Date(Date.now() - cutoffMs).toISOString();
+    }
 
     const { data: accounts, count: totalAccounts, error: accountsError } = await supabase
       .from("ad_accounts")
@@ -465,7 +472,7 @@ app.get("/api/dashboard/account-health", async (req, res) => {
       return res.json(cachedHealth.data);
     }
 
-    // Map range to alert cutoff (milliseconds)
+    // Map range to alert cutoff (milliseconds, or calendar month for this_month)
     const rangeToMs = {
       today: 24 * 60 * 60 * 1000,
       yesterday: 48 * 60 * 60 * 1000,
@@ -475,8 +482,15 @@ app.get("/api/dashboard/account-health", async (req, res) => {
       maximum: 365 * 24 * 60 * 60 * 1000,
     };
 
-    const cutoffMs = rangeToMs[range] || rangeToMs.today;
-    const alertCutoff = new Date(Date.now() - cutoffMs).toISOString();
+    let alertCutoff;
+    if (range === "this_month") {
+      const now = new Date();
+      const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
+      alertCutoff = monthStart.toISOString();
+    } else {
+      const cutoffMs = rangeToMs[range] || rangeToMs.today;
+      alertCutoff = new Date(Date.now() - cutoffMs).toISOString();
+    }
 
     const { data: accounts, error: accError } = await supabase
       .from("ad_accounts")
