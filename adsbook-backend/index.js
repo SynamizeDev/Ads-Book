@@ -8,9 +8,44 @@ const { fetchAdInsights, fetchAccountName, getActiveCampaignIds } = require("./s
 const { evaluateAndPauseAd } = require("./services/autoPauseService");
 const { requireAuth } = require("./middleware/auth");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const OpenAI = require("openai");
 
 // Initial SDK setup - we only need the key here
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+// OpenAI client (optional) - used when imageProvider === "openai"
+const openaiApiKey = (process.env.OPENAI_API_KEY || "").trim();
+const openai = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey }) : null;
+const OPENAI_IMAGE_MODEL = "dall-e-2"; // supports n=1-10 per request
+const OPENAI_IMAGE_SIZE = "1024x1024";
+
+/**
+ * Generate multiple images in one or more batched API calls (up to 10 per call for dall-e-2).
+ * Returns array of base64 strings.
+ * @param {string} prompt
+ * @param {number} count
+ * @returns {Promise<string[]>}
+ */
+async function generateImagesWithOpenAI(prompt, count = 10) {
+  if (!openai) throw new Error("OPENAI_API_KEY is not set");
+  const allB64 = [];
+  let remaining = Math.min(Math.max(1, count), 20);
+  while (remaining > 0) {
+    const n = Math.min(remaining, 10);
+    const result = await openai.images.generate({
+      model: OPENAI_IMAGE_MODEL,
+      prompt,
+      size: OPENAI_IMAGE_SIZE,
+      n,
+      response_format: "b64_json",
+    });
+    const b64List = (result.data || []).map((img) => img.b64_json).filter(Boolean);
+    allB64.push(...b64List);
+    remaining -= n;
+    if (remaining > 0 && b64List.length < n) break;
+  }
+  return allB64;
+}
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -381,7 +416,8 @@ RULES:
 }
 
 app.post("/api/tools/generate-creative-variations", async (req, res) => {
-  const { analysis, accountIds, geminiApiKey: bodyApiKey, imageModelId } = req.body;
+  const { analysis, accountIds, geminiApiKey: bodyApiKey, imageModelId, imageProvider: bodyProvider } = req.body;
+  const imageProvider = (typeof bodyProvider === "string" ? bodyProvider.trim().toLowerCase() : "") || "gemini";
 
   if (!analysis || typeof analysis !== "object") {
     return res.status(400).json({ error: "analysis object is required (from analyze-creative)" });
@@ -394,18 +430,6 @@ app.post("/api/tools/generate-creative-variations", async (req, res) => {
   if (accountIds.length > MAX_ACCOUNTS_PER_RUN) {
     console.warn(`⚠️ generate-creative-variations: capped to ${MAX_ACCOUNTS_PER_RUN} accounts`);
   }
-
-  // Key resolution: user-provided key takes precedence if valid; otherwise use env. Do not log or persist user key.
-  const userKey = typeof bodyApiKey === "string" ? bodyApiKey.trim() : "";
-  const envKey = (process.env.GEMINI_API_KEY || "").trim();
-  const rawApiKey = userKey && userKey.startsWith("AIza") ? userKey : envKey;
-  if (!rawApiKey || !rawApiKey.startsWith("AIza")) {
-    return res.status(400).json({
-      error: "Provide a Gemini API key in the form or set GEMINI_API_KEY on the server."
-    });
-  }
-
-  const axios = require("axios");
 
   const { data: accounts, error: accError } = await supabase
     .from("ad_accounts")
@@ -422,14 +446,52 @@ app.post("/api/tools/generate-creative-variations", async (req, res) => {
   }
 
   const creatives = [];
-  // If user selected a specific model, use only that; otherwise try default image-capable list (Nano Banana, Nano Banana 2, Imagen 4).
+
+  // Optional: OpenAI image generation (batch up to 20 in one or two API calls). On failure, fall back to Gemini.
+  // Set OPENAI_API_KEY in env to enable OpenAI; when unset and provider is "openai", Gemini is used.
+  if (imageProvider === "openai" && !openai) {
+    console.warn("OpenAI selected but OPENAI_API_KEY not set; using Gemini.");
+  }
+  if (imageProvider === "openai" && openai) {
+    try {
+      const prompt = buildVariationPrompt(analysis, accounts[0]);
+      const count = Math.min(accounts.length, 20);
+      const images = await generateImagesWithOpenAI(prompt, count);
+      for (let i = 0; i < accounts.length; i++) {
+        const account = accounts[i];
+        const imageBase64 = images[i];
+        creatives.push({
+          accountId: account.id,
+          accountName: account.account_name || "Unnamed",
+          ...(imageBase64 ? { imageBase64, mimeType: "image/png", provider: "openai" } : { error: "No image returned for this slot." }),
+        });
+      }
+      return res.json({ success: true, creatives });
+    } catch (err) {
+      console.error("OpenAI image generation failed, falling back to Gemini:", err.message);
+    }
+  }
+
+  // Gemini path (default or fallback after OpenAI failure)
+  const userKey = typeof bodyApiKey === "string" ? bodyApiKey.trim() : "";
+  const envKey = (process.env.GEMINI_API_KEY || "").trim();
+  const rawApiKey = userKey && userKey.startsWith("AIza") ? userKey : envKey;
+  if (!rawApiKey || !rawApiKey.startsWith("AIza")) {
+    return res.status(400).json({
+      error: "Provide a Gemini API key in the form or set GEMINI_API_KEY on the server."
+    });
+  }
+
+  const axios = require("axios");
+  // If user selected a specific model, use only that; otherwise try default image-capable list (generateContent-only; no Imagen/Vertex).
   const modelId = typeof imageModelId === "string" ? imageModelId.trim() : "";
   const imageGenModelUrls = modelId
     ? [`https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${rawApiKey}`]
     : [
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${rawApiKey}`,
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${rawApiKey}`,
-        `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:generateContent?key=${rawApiKey}`
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${rawApiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${rawApiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${rawApiKey}`
       ];
 
   for (const account of accounts) {
@@ -444,6 +506,7 @@ app.post("/api/tools/generate-creative-variations", async (req, res) => {
     };
 
     let gotImage = false;
+    let lastError = null;
     for (const imageGenUrl of imageGenModelUrls) {
       const modelName = imageGenUrl.match(/models\/([^:?]+)/)?.[1] || "unknown";
       console.log(`🖼️ Trying image model for ${account.account_name}: ${modelName}`);
@@ -468,19 +531,35 @@ app.post("/api/tools/generate-creative-variations", async (req, res) => {
           gotImage = true;
           break;
         }
+        lastError = lastError || "No image in API response (model: " + modelName + ").";
       } catch (err) {
         const msg = err.response?.data?.error?.message || err.message;
-        const is404 = err.response?.status === 404;
-        if (is404) continue;
+        const status = err.response?.status;
+        const is404 = status === 404;
+        if (is404) {
+          lastError = lastError || "Model not found (404): " + modelName;
+          continue;
+        }
+        const isQuota = status === 429 || /quota|rate limit|Resource exhausted/i.test(msg || "");
+        if (isQuota) {
+          const retryMatch = msg && msg.match(/retry in ([\d.]+)s/i);
+          const waitHint = retryMatch ? ` Wait about ${Math.ceil(Number(retryMatch[1]))} seconds and try again.` : " Wait a minute and try again, or check your plan.";
+          lastError = "Quota exceeded for this model." + waitHint + " See https://ai.google.dev/gemini-api/docs/rate-limits";
+        } else {
+          lastError = msg;
+        }
         console.warn(`⚠️ Image gen attempt failed for ${account.account_name}:`, msg);
       }
     }
 
     if (!gotImage) {
+      const errorMessage = lastError
+        ? (lastError.startsWith("Quota exceeded") ? lastError : `Image generation failed. ${lastError}`)
+        : "Image generation is not available with current models. The Gemini API may require an image-capable model (e.g. Imagen) or a different API plan.";
       creatives.push({
         accountId: account.id,
         accountName: account.account_name || "Unnamed",
-        error: "Image generation is not available with current models. The Gemini API may require an image-capable model (e.g. Imagen) or a different API plan."
+        error: errorMessage
       });
     }
   }
