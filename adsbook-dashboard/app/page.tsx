@@ -287,7 +287,7 @@ function ExecutiveSummary({ summary }: { summary: DashboardSummary }) {
 }
 
 export default async function Home() {
-  const range = "last_30d";
+  const range = "this_month";
 
   // getCachedUser() reuses the same Auth result already fetched by layout.tsx
   // in the same request — zero extra network round-trip
@@ -342,6 +342,10 @@ export default async function Home() {
         </div>
 
         <WelcomeBanner displayName={displayName} />
+        <div className="mb-4">
+          <h2 className="text-[18px] font-semibold text-foreground tracking-tight">This month</h2>
+          <p className="text-[13px] text-muted mt-0.5">Stats below are for the current calendar month.</p>
+        </div>
         <ExecutiveSummary summary={summary} />
         <UrgentAlertsSection alerts={urgentAlerts} />
         <AccountHealthSection healthData={healthData} />
