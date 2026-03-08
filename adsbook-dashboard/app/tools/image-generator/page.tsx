@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import Select from "react-select";
 import Toast from "../../components/Toast";
 import {
     getAccounts,
@@ -18,11 +19,102 @@ const JPEG_QUALITY = 0.82;
 
 const IMAGE_MODEL_OPTIONS: { id: string; label: string; hint?: string }[] = [
     { id: "", label: "Auto", hint: "Try server defaults" },
-    { id: "gemini-2.5-flash-image", label: "Nano Banana (Gemini 2.5 Flash Image)", hint: "Free tier" },
-    { id: "gemini-3.1-flash-image", label: "Nano Banana 2 (Gemini 3.1 Flash Image)", hint: "If available" },
-    { id: "imagen-4.0-generate-001", label: "Gemini Imagen 4 (Standard)", hint: "High quality" },
-    { id: "imagen-4.0-fast-generate-001", label: "Gemini Imagen 4 Fast", hint: "Faster" },
+    { id: "gemini-2.5-flash-image", label: "Nano Banana", hint: "Free tier" },
+    { id: "gemini-3.1-flash-image-preview", label: "Nano Banana 2", hint: "If available" },
+    { id: "gemini-2.0-flash-exp-image-generation", label: "Gemini 2.0 Flash (Image Generation) Experimental", hint: "Experimental" },
+    { id: "gemini-3-pro-image-preview", label: "Nano Banana Pro", hint: "Pro image" },
 ];
+
+const OPENAI_MODEL_OPTIONS: { id: string; label: string; hint?: string }[] = [
+    { id: "dall-e-2", label: "DALL·E 2", hint: "1024×1024" },
+];
+
+const PROVIDER_OPTIONS: { value: "gemini" | "openai"; label: string }[] = [
+    { value: "gemini", label: "Gemini" },
+    { value: "openai", label: "OpenAI" },
+];
+
+const imageSelectStyles = {
+    control: (base: object, state: { isFocused: boolean; isDisabled?: boolean }) => ({
+        ...base,
+        minHeight: 42,
+        borderRadius: 12,
+        borderColor: state.isFocused ? "var(--color-accent, hsl(var(--accent)))" : "var(--border)",
+        backgroundColor: state.isDisabled ? "var(--muted)" : "var(--background)",
+        boxShadow: state.isFocused ? "0 0 0 2px hsl(var(--accent) / 0.2)" : "none",
+        opacity: state.isDisabled ? 0.8 : 1,
+        cursor: state.isDisabled ? "not-allowed" : "pointer",
+    }),
+    menu: (base: object) => ({
+        ...base,
+        borderRadius: 12,
+        backgroundColor: "var(--card)",
+        border: "1px solid var(--border)",
+        overflow: "hidden",
+        zIndex: 9999,
+    }),
+    menuPortal: (base: object) => ({ ...base, zIndex: 9999 }),
+    menuList: (base: object) => ({ ...base, padding: 6 }),
+    option: (base: object, state: { isFocused: boolean; isSelected: boolean }) => ({
+        ...base,
+        fontSize: 13,
+        padding: "10px 12px",
+        borderRadius: 8,
+        backgroundColor: state.isSelected ? "hsl(var(--accent) / 0.2)" : state.isFocused ? "var(--muted)" : "transparent",
+        color: "var(--foreground)",
+        cursor: "pointer",
+    }),
+    singleValue: (base: object) => ({ ...base, color: "var(--foreground)" }),
+    placeholder: (base: object) => ({ ...base, color: "var(--muted-foreground)" }),
+    input: (base: object) => ({ ...base, color: "var(--foreground)" }),
+    indicatorSeparator: () => ({ display: "none" }),
+    dropdownIndicator: (base: object, state: { isDisabled?: boolean }) => ({
+        ...base,
+        color: "var(--muted-foreground)",
+        padding: "8px",
+        ...(state.isDisabled ? { display: "none" } : {}),
+    }),
+};
+
+type ModelOption = { value: string; label: string };
+function modelOptionsForProvider(provider: "gemini" | "openai"): ModelOption[] {
+    const list = provider === "gemini" ? IMAGE_MODEL_OPTIONS : OPENAI_MODEL_OPTIONS;
+    return list.map((opt) => ({
+        value: opt.id,
+        label: opt.hint ? `${opt.label} — ${opt.hint}` : opt.label,
+    }));
+}
+
+function ImageModelSelect({
+    imageProvider,
+    imageGenModelId,
+    setImageGenModelId,
+    imageSelectStyles,
+}: {
+    imageProvider: "gemini" | "openai";
+    imageGenModelId: string;
+    setImageGenModelId: (v: string) => void;
+    imageSelectStyles: object;
+}) {
+    const options = useMemo(() => modelOptionsForProvider(imageProvider), [imageProvider]);
+    const effectiveId = imageProvider === "openai"
+        ? (OPENAI_MODEL_OPTIONS.some((o) => o.id === imageGenModelId) ? imageGenModelId : "dall-e-2")
+        : imageGenModelId;
+    const value = options.find((o) => o.value === effectiveId) ?? options[0] ?? null;
+    return (
+        <Select<ModelOption>
+            value={value}
+            onChange={(opt) => setImageGenModelId(opt?.value ?? "")}
+            options={options}
+            placeholder="Select model"
+            isClearable={false}
+            styles={imageSelectStyles}
+            classNamePrefix="image-model-select"
+            menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
+            menuPosition="fixed"
+        />
+    );
+}
 
 /** Compress image to JPEG and resize so request stays under body limit */
 function compressImageForUpload(file: File): Promise<{ data: string; mimeType: string }> {
@@ -77,6 +169,7 @@ export default function ImageGeneratorPage() {
     const [showAnalysis, setShowAnalysis] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
     const [imageGenModelId, setImageGenModelId] = useState("");
+    const [imageProvider, setImageProvider] = useState<"gemini" | "openai">("gemini");
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -150,6 +243,7 @@ export default function ImageGeneratorPage() {
         try {
             const res = await generateCreativeVariations(analysis, Array.from(selectedIds), {
                 imageModelId: imageGenModelId || undefined,
+                imageProvider,
             });
             if (res.success && res.data?.creatives) {
                 setCreatives(res.data.creatives);
@@ -240,7 +334,25 @@ export default function ImageGeneratorPage() {
                                         )}
                                     </button>
                                 </div>
-                                <div className="ml-auto w-full max-w-[280px]">
+                                <div className="ml-auto flex flex-col gap-4 w-full max-w-[280px]">
+                                    <div className="rounded-2xl border border-border bg-card/80 backdrop-blur-sm p-4 shadow-sm hover:border-accent/30 hover:shadow-md transition-all duration-200">
+                                        <p className="text-[11px] text-muted uppercase font-semibold mb-2">Image provider</p>
+                                        <Select<{ value: "gemini" | "openai"; label: string }>
+                                            value={PROVIDER_OPTIONS.find((o) => o.value === imageProvider) ?? null}
+                                            onChange={(opt) => {
+                                                const next = opt?.value ?? "gemini";
+                                                setImageProvider(next);
+                                                setImageGenModelId(next === "openai" ? "dall-e-2" : "");
+                                            }}
+                                            options={PROVIDER_OPTIONS}
+                                            placeholder="Select provider"
+                                            isClearable={false}
+                                            styles={imageSelectStyles}
+                                            classNamePrefix="image-provider-select"
+                                            menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
+                                            menuPosition="fixed"
+                                        />
+                                    </div>
                                     <div className="rounded-2xl border border-border bg-card/80 backdrop-blur-sm p-4 shadow-sm hover:border-accent/30 hover:shadow-md transition-all duration-200">
                                         <div className="flex items-center gap-2 mb-2">
                                             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/10 text-accent">
@@ -250,19 +362,15 @@ export default function ImageGeneratorPage() {
                                             </span>
                                             <div>
                                                 <p className="text-[13px] font-semibold text-foreground">Image model</p>
-                                                <p className="text-[11px] text-muted">Choose how creatives are generated</p>
+                                                <p className="text-[11px] text-muted">{imageProvider === "gemini" ? "Gemini model" : "OpenAI model"}</p>
                                             </div>
                                         </div>
-                                        <select
-                                            value={imageGenModelId}
-                                            onChange={(e) => setImageGenModelId(e.target.value)}
-                                            className="w-full px-4 py-3 rounded-xl bg-background/80 border border-border text-[13px] font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50 transition-all cursor-pointer appearance-none bg-[length:16px] bg-[right_12px_center] bg-no-repeat pr-10"
-                                            style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E\")" }}
-                                        >
-                                            {IMAGE_MODEL_OPTIONS.map((opt) => (
-                                                <option key={opt.id || "auto"} value={opt.id}>{opt.hint ? `${opt.label} — ${opt.hint}` : opt.label}</option>
-                                            ))}
-                                        </select>
+                                        <ImageModelSelect
+                                            imageProvider={imageProvider}
+                                            imageGenModelId={imageGenModelId}
+                                            setImageGenModelId={setImageGenModelId}
+                                            imageSelectStyles={imageSelectStyles}
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -350,9 +458,14 @@ export default function ImageGeneratorPage() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {creatives.map((c) => (
                                     <div key={c.accountId} className="rounded-[18px] border border-border overflow-hidden bg-background">
-                                        <p className="p-3 text-[13px] font-medium text-foreground truncate" title={c.accountName}>
-                                            {c.accountName}
-                                        </p>
+                                        <div className="p-3 flex items-center justify-between gap-2">
+                                            <p className="text-[13px] font-medium text-foreground truncate min-w-0" title={c.accountName}>
+                                                {c.accountName}
+                                            </p>
+                                            <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide px-2 py-0.5 rounded-md bg-muted text-muted-foreground" title={c.provider === "openai" ? "Generated with OpenAI" : "Generated with Gemini"}>
+                                                {c.provider === "openai" ? "OpenAI" : "Gemini"}
+                                            </span>
+                                        </div>
                                         {c.error ? (
                                             <div className="p-4 text-[12px] text-danger">{c.error}</div>
                                         ) : c.imageBase64 ? (

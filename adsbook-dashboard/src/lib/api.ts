@@ -447,19 +447,24 @@ export interface CreativeVariationResult {
   imageBase64?: string;
   mimeType?: string;
   error?: string;
+  provider?: string;
 }
 
 export async function generateCreativeVariations(
   analysis: CreativeAnalysis,
   accountIds: string[],
-  options?: { geminiApiKey?: string; imageModelId?: string }
+  options?: { geminiApiKey?: string; imageModelId?: string; imageProvider?: string }
 ): Promise<ApiResponse<{ success: boolean; creatives: CreativeVariationResult[] }>> {
-  const body: { analysis: CreativeAnalysis; accountIds: string[]; geminiApiKey?: string; imageModelId?: string } = {
-    analysis,
-    accountIds,
-  };
+  const body: {
+    analysis: CreativeAnalysis;
+    accountIds: string[];
+    geminiApiKey?: string;
+    imageModelId?: string;
+    imageProvider?: string;
+  } = { analysis, accountIds };
   if (options?.geminiApiKey) body.geminiApiKey = options.geminiApiKey;
   if (options?.imageModelId) body.imageModelId = options.imageModelId;
+  if (options?.imageProvider !== undefined) body.imageProvider = options.imageProvider;
   return fetchApi<{ success: boolean; creatives: CreativeVariationResult[] }>("/api/tools/generate-creative-variations", {
     method: "POST",
     body: JSON.stringify(body),
