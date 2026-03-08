@@ -34,7 +34,8 @@ async function diagnosticListModels() {
 diagnosticListModels();
 
 app.use(cors());
-app.use(express.json());
+// Allow large payloads for image uploads (e.g. base64 reference image for analyze-creative)
+app.use(express.json({ limit: "20mb" }));
 
 // Apply auth middleware to all /api/ routes
 app.use("/api", requireAuth);
@@ -228,6 +229,263 @@ app.post("/api/tools/enhance-text", async (req, res) => {
       details: error.response?.data || error.message
     });
   }
+});
+
+// AI Creative Analysis (Vision): analyze reference image → structured blueprint
+const ANALYSIS_PROMPT = `You are an expert ad creative analyst. Analyze this reference ad image and return a structured creative blueprint as valid JSON only (no markdown, no code fence).
+
+Extract and describe:
+- layout: overall structure (e.g. "hero left, CTA right", "centered headline with product below")
+- composition: how elements are arranged (grid, asymmetric, etc.)
+- dominantColors: 3-5 main colors (hex or names)
+- subjectPlacement: where the main subject/product/person is (e.g. center, left third)
+- textZones: where text appears (headline area, body, CTA) and approximate size/tone
+- backgroundStyle: solid, gradient, photo, minimal, etc.
+- typography: font style feel (bold, script, sans-serif, etc.)
+- visualStyle: overall look (minimal, bold, luxury, playful, professional)
+- brandTone: inferred tone (premium, friendly, urgent, aspirational)
+- objects: main visible objects (product, person, icons, etc.)
+
+Output ONLY a single JSON object with these keys. No other text.`;
+
+function extractJsonFromText(text) {
+  if (!text || typeof text !== "string") return null;
+  const trimmed = text.trim();
+  const codeBlock = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const raw = codeBlock ? codeBlock[1].trim() : trimmed;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+app.post("/api/tools/analyze-creative", async (req, res) => {
+  const { imageBase64, mimeType = "image/png" } = req.body;
+
+  if (!imageBase64) {
+    return res.status(400).json({ error: "imageBase64 is required" });
+  }
+
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(500).json({
+      error: "AI feature not configured. Please add GEMINI_API_KEY to your backend environment."
+    });
+  }
+
+  const rawApiKey = (process.env.GEMINI_API_KEY || "").trim();
+  if (!rawApiKey || !rawApiKey.startsWith("AIza")) {
+    return res.status(500).json({
+      error: "Invalid or missing GEMINI_API_KEY."
+    });
+  }
+
+  const axios = require("axios");
+  const allowedMime = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+  const mime = allowedMime.includes(mimeType) ? mimeType : "image/png";
+
+  // Strip data URL prefix if present (e.g. "data:image/png;base64,...")
+  let base64Data = imageBase64;
+  if (base64Data.includes(",")) {
+    base64Data = base64Data.split(",")[1] || base64Data;
+  }
+
+  const requestBody = {
+    contents: [{
+      parts: [
+        { inlineData: { mimeType: mime, data: base64Data } },
+        { text: ANALYSIS_PROMPT }
+      ]
+    }],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 1024,
+      responseMimeType: "application/json"
+    }
+  };
+
+  // Vision-capable models (image input). Avoid 404 in v1beta: gemini-pro-vision, gemini-1.5-pro, gemini-1.5-flash-8b.
+  const modelUrls = [
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${rawApiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${rawApiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${rawApiKey}`
+  ];
+
+  let lastError = null;
+  for (const url of modelUrls) {
+    const modelName = url.match(/models\/([^:?]+)/)?.[1] || "unknown";
+    console.log(`🔍 Analyze creative: trying model ${modelName}`);
+    try {
+      const response = await axios.post(url, requestBody, {
+        headers: { "Content-Type": "application/json" },
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity
+      });
+
+      const parts = response.data?.candidates?.[0]?.content?.parts;
+      const textPart = parts?.find(p => p.text);
+      const rawText = textPart?.text?.trim();
+      if (!rawText) continue;
+
+      let analysis = null;
+      try {
+        analysis = JSON.parse(rawText);
+      } catch {
+        analysis = extractJsonFromText(rawText);
+      }
+      if (analysis && typeof analysis === "object") {
+        console.log(`✅ Creative analysis success (model: ${modelName})`);
+        return res.json({ success: true, analysis });
+      }
+    } catch (err) {
+      lastError = err;
+      const msg = err.response?.data?.error?.message || err.message;
+      console.warn("⚠️ Analyze creative attempt failed:", msg);
+    }
+  }
+
+  console.error("❌ All analyze-creative attempts failed:", lastError?.message);
+  res.status(500).json({
+    error: "Creative analysis failed. Could not get structured analysis from the image.",
+    details: lastError?.response?.data || lastError?.message
+  });
+});
+
+// AI Creative Variations: generate one ad image per account from blueprint + account params
+const MAX_ACCOUNTS_PER_RUN = 5;
+
+function buildVariationPrompt(analysis, account) {
+  const loc = account.location || "unspecified";
+  const age = account.age_group || "all ages";
+  const gender = account.gender || "any";
+  const program = account.active_program_name || "general";
+  const blueprint = typeof analysis === "object" ? JSON.stringify(analysis, null, 0) : String(analysis);
+
+  return `You are an expert ad creative designer. Create ONE ad image that follows this exact creative blueprint but adapted for a specific audience.
+
+CREATIVE BLUEPRINT (preserve this structure and layout):
+${blueprint}
+
+TARGET ACCOUNT PARAMETERS:
+- Location: ${loc}
+- Age group: ${age}
+- Gender: ${gender}
+- Program/interest: ${program}
+
+RULES:
+- Keep the same overall layout, composition, and structure as the blueprint.
+- Adapt visuals and tone for this audience (e.g. Gen Z → brighter, energetic; luxury → darker, premium; budget → simple, value-focused).
+- Adjust colors or style only enough to match the demographic; do not change the layout.
+- The output must feel like a human designer recreated the same ad for this audience segment.
+- Generate a single, complete ad creative image. No text explanations.`;
+}
+
+app.post("/api/tools/generate-creative-variations", async (req, res) => {
+  const { analysis, accountIds, geminiApiKey: bodyApiKey, imageModelId } = req.body;
+
+  if (!analysis || typeof analysis !== "object") {
+    return res.status(400).json({ error: "analysis object is required (from analyze-creative)" });
+  }
+  if (!Array.isArray(accountIds) || accountIds.length === 0) {
+    return res.status(400).json({ error: "accountIds array is required and must not be empty" });
+  }
+
+  const ids = accountIds.slice(0, MAX_ACCOUNTS_PER_RUN);
+  if (accountIds.length > MAX_ACCOUNTS_PER_RUN) {
+    console.warn(`⚠️ generate-creative-variations: capped to ${MAX_ACCOUNTS_PER_RUN} accounts`);
+  }
+
+  // Key resolution: user-provided key takes precedence if valid; otherwise use env. Do not log or persist user key.
+  const userKey = typeof bodyApiKey === "string" ? bodyApiKey.trim() : "";
+  const envKey = (process.env.GEMINI_API_KEY || "").trim();
+  const rawApiKey = userKey && userKey.startsWith("AIza") ? userKey : envKey;
+  if (!rawApiKey || !rawApiKey.startsWith("AIza")) {
+    return res.status(400).json({
+      error: "Provide a Gemini API key in the form or set GEMINI_API_KEY on the server."
+    });
+  }
+
+  const axios = require("axios");
+
+  const { data: accounts, error: accError } = await supabase
+    .from("ad_accounts")
+    .select("id, account_name, account_id, location, age_group, gender, active_program_name")
+    .in("id", ids)
+    .eq("is_active", true);
+
+  if (accError) {
+    console.error("❌ Fetch accounts for variations:", accError.message);
+    return res.status(500).json({ error: "Failed to fetch accounts." });
+  }
+  if (!accounts || accounts.length === 0) {
+    return res.status(400).json({ error: "No valid active accounts found for the given IDs." });
+  }
+
+  const creatives = [];
+  // If user selected a specific model, use only that; otherwise try default image-capable list (Nano Banana, Nano Banana 2, Imagen 4).
+  const modelId = typeof imageModelId === "string" ? imageModelId.trim() : "";
+  const imageGenModelUrls = modelId
+    ? [`https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${rawApiKey}`]
+    : [
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${rawApiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${rawApiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:generateContent?key=${rawApiKey}`
+      ];
+
+  for (const account of accounts) {
+    const prompt = buildVariationPrompt(analysis, account);
+    const requestBody = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.8,
+        maxOutputTokens: 8192,
+        responseModalities: ["TEXT", "IMAGE"]
+      }
+    };
+
+    let gotImage = false;
+    for (const imageGenUrl of imageGenModelUrls) {
+      const modelName = imageGenUrl.match(/models\/([^:?]+)/)?.[1] || "unknown";
+      console.log(`🖼️ Trying image model for ${account.account_name}: ${modelName}`);
+      try {
+        const response = await axios.post(imageGenUrl, requestBody, {
+          headers: { "Content-Type": "application/json" },
+          maxBodyLength: Infinity,
+          maxContentLength: Infinity,
+          timeout: 120000
+        });
+
+        const parts = response.data?.candidates?.[0]?.content?.parts || [];
+        const imagePart = parts.find(p => p.inlineData && p.inlineData.data);
+        if (imagePart && imagePart.inlineData.data) {
+          creatives.push({
+            accountId: account.id,
+            accountName: account.account_name || "Unnamed",
+            imageBase64: imagePart.inlineData.data,
+            mimeType: imagePart.inlineData.mimeType || "image/png"
+          });
+          console.log(`✅ Generated creative for account: ${account.account_name} (model: ${modelName})`);
+          gotImage = true;
+          break;
+        }
+      } catch (err) {
+        const msg = err.response?.data?.error?.message || err.message;
+        const is404 = err.response?.status === 404;
+        if (is404) continue;
+        console.warn(`⚠️ Image gen attempt failed for ${account.account_name}:`, msg);
+      }
+    }
+
+    if (!gotImage) {
+      creatives.push({
+        accountId: account.id,
+        accountName: account.account_name || "Unnamed",
+        error: "Image generation is not available with current models. The Gemini API may require an image-capable model (e.g. Imagen) or a different API plan."
+      });
+    }
+  }
+
+  res.json({ success: true, creatives });
 });
 
 // Get current user/agency profile (simulated auth)
