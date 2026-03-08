@@ -16,8 +16,8 @@ export default function BudgetProgress({ budget }: { budget: BudgetInfo }) {
     };
 
     return (
-        <div className="bg-card rounded-[20px] p-6 shadow-sm hover:shadow-md transition-all border border-border h-full">
-            <div className="flex justify-between items-start mb-4">
+        <div className="bg-card rounded-[20px] p-6 shadow-sm hover:shadow-md transition-all border border-border min-h-[200px] flex flex-col">
+            <div className="flex justify-between items-center mb-4 min-h-[32px]">
                 <div>
                     <p className="text-[13px] text-muted font-medium">Monthly Budget</p>
                     <p className="text-[11px] text-muted mt-0.5">Spend Cap vs. Actual</p>

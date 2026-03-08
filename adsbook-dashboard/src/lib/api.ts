@@ -28,6 +28,10 @@ export interface Account {
   include_in_weekly_report: boolean;
   drive_link?: string;
   sheet_link?: string;
+  location?: string | null;
+  age_group?: string | null;
+  gender?: string | null;
+  active_program_name?: string | null;
   created_at?: string;
 }
 
@@ -343,7 +347,16 @@ export async function createAccount(payload: { name: string; ad_account_id: stri
   });
 }
 
-export async function updateAccount(accountId: string, payload: { name: string; cpl_threshold: number; drive_link?: string; sheet_link?: string }): Promise<ApiResponse<{ updatedAccount: Account }>> {
+export async function updateAccount(accountId: string, payload: {
+  name: string;
+  cpl_threshold: number;
+  drive_link?: string;
+  sheet_link?: string;
+  location?: string | null;
+  age_group?: string | null;
+  gender?: string | null;
+  active_program_name?: string | null;
+}): Promise<ApiResponse<{ updatedAccount: Account }>> {
   return fetchApi<{ updatedAccount: Account }>(`/api/accounts/${accountId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),

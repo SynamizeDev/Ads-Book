@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Select from "react-select";
 import {
     getAccounts,
     getAccountCplLogs,
@@ -254,23 +255,23 @@ function AccountLinksControl({ account, onUpdate }: { account: Account; onUpdate
     }
 
     return (
-        <div className="bg-card rounded-[20px] p-6 shadow-sm border border-border col-span-1 md:col-span-2 flex flex-col">
-            <div className="flex justify-between items-start mb-4">
+        <div className="bg-card rounded-[20px] p-6 shadow-sm border border-border col-span-1 md:col-span-2 flex flex-col min-h-[200px]">
+            <div className="flex justify-between items-center mb-4 min-h-[32px]">
                 <p className="text-[13px] text-muted font-medium">Account Assets</p>
-                <button onClick={() => setIsEditing(true)} className="text-muted hover:text-foreground p-1.5 rounded-[10px] hover:bg-hover-bg transition-colors" title="Edit Assets">
+                <button onClick={() => setIsEditing(true)} className="text-muted hover:text-foreground p-1.5 rounded-[10px] hover:bg-hover-bg transition-colors w-8 h-8 flex items-center justify-center flex-shrink-0" title="Edit Assets">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 flex-1">
+            <div className="grid grid-cols-1 gap-3 flex-1 min-h-0">
                 {/* 🔹 Google Drive Folder */}
                 <a
                     href={account.drive_link || "#"}
                     target={account.drive_link ? "_blank" : undefined}
                     rel="noopener noreferrer"
-                    className={`group relative flex items-center gap-4 p-4 rounded-[16px] border transition-all duration-300 ${account.drive_link
+                    className={`group relative flex items-center gap-4 min-h-[72px] py-3.5 px-4 rounded-[16px] border transition-all duration-300 ${account.drive_link
                         ? 'bg-blue-50/10 border-blue-500/20 hover:border-blue-500/40 hover:bg-blue-50/20 text-foreground'
                         : 'bg-hover-bg/30 border-dashed border-border text-muted cursor-not-allowed'
                         }`}
@@ -280,12 +281,12 @@ function AccountLinksControl({ account, onUpdate }: { account: Account; onUpdate
                             <path d="M7.71 3.502L1.15 15l3.446 6.002L11.156 9.502H7.71zM9.73 15l3.444 6.002h13.104L19.715 15H9.73zM12.87 3.502l6.85 11.908L23.144 15 16.29 3.502h-3.42z" />
                         </svg>
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-bold tracking-tight">Drive</p>
                         <p className="text-[11px] text-muted truncate">{account.drive_link ? "Open Assets" : "N/A"}</p>
                     </div>
                     {account.drive_link && (
-                        <svg className="absolute top-3 right-3 w-3 h-3 text-blue-500/50 group-hover:text-blue-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <svg className="absolute top-3 right-3 w-3 h-3 text-blue-500/50 group-hover:text-blue-500 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                     )}
@@ -296,7 +297,7 @@ function AccountLinksControl({ account, onUpdate }: { account: Account; onUpdate
                     href={account.sheet_link || "#"}
                     target={account.sheet_link ? "_blank" : undefined}
                     rel="noopener noreferrer"
-                    className={`group relative flex items-center gap-4 p-4 rounded-[16px] border transition-all duration-300 ${account.sheet_link
+                    className={`group relative flex items-center gap-4 min-h-[72px] py-3.5 px-4 rounded-[16px] border transition-all duration-300 ${account.sheet_link
                         ? 'bg-green-50/10 border-green-500/20 hover:border-green-500/40 hover:bg-green-50/20 text-foreground'
                         : 'bg-hover-bg/30 border-dashed border-border text-muted cursor-not-allowed'
                         }`}
@@ -306,16 +307,202 @@ function AccountLinksControl({ account, onUpdate }: { account: Account; onUpdate
                             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zM6 4h7v5h5v11H6V4z" />
                         </svg>
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-bold tracking-tight">Sheet</p>
                         <p className="text-[11px] text-muted truncate">{account.sheet_link ? "Open Report" : "N/A"}</p>
                     </div>
                     {account.sheet_link && (
-                        <svg className="absolute top-3 right-3 w-3 h-3 text-green-500/50 group-hover:text-green-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <svg className="absolute top-3 right-3 w-3 h-3 text-green-500/50 group-hover:text-green-500 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                     )}
                 </a>
+            </div>
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        </div>
+    );
+}
+
+/* ────── Account Details (Location, Age Group, Gender, Active Program) ────── */
+const GENDER_OPTIONS = ["Men and Women", "Women", "Men"];
+const GENDER_SELECT_OPTIONS: { value: string; label: string }[] = [
+    { value: "", label: "Select gender" },
+    ...GENDER_OPTIONS.map((opt) => ({ value: opt, label: opt })),
+];
+function normalizeGender(v: string | null | undefined): string {
+    return v === "All" ? "Men and Women" : (v || "");
+}
+
+const genderSelectStyles = {
+    control: (base: object, state: { isFocused: boolean; isDisabled?: boolean }) => ({
+        ...base,
+        minHeight: 40,
+        borderRadius: 10,
+        borderColor: state.isFocused ? "var(--color-blue-500, #3b82f6)" : "var(--border-color, #e5e7eb)",
+        backgroundColor: state.isDisabled ? "var(--hover-bg)" : "var(--hover-bg, #f9fafb)",
+        boxShadow: state.isFocused ? "0 0 0 1px var(--color-blue-500, #3b82f6)" : "none",
+        opacity: state.isDisabled ? 0.9 : 1,
+        cursor: state.isDisabled ? "not-allowed" : "pointer",
+    }),
+    menu: (base: object) => ({
+        ...base,
+        borderRadius: 10,
+        backgroundColor: "var(--card, #1f2937)",
+        border: "1px solid var(--border-color)",
+        overflow: "hidden",
+        zIndex: 50,
+    }),
+    menuList: (base: object) => ({ ...base, padding: 4 }),
+    option: (base: object, state: { isFocused: boolean; isSelected: boolean }) => ({
+        ...base,
+        fontSize: 13,
+        padding: "10px 12px",
+        borderRadius: 6,
+        backgroundColor: state.isSelected ? "rgba(59, 130, 246, 0.2)" : state.isFocused ? "var(--hover-bg)" : "transparent",
+        color: "var(--foreground)",
+        cursor: "pointer",
+    }),
+    singleValue: (base: object) => ({ ...base, color: "var(--foreground)" }),
+    placeholder: (base: object) => ({ ...base, color: "var(--muted)" }),
+    input: (base: object) => ({ ...base, color: "var(--foreground)" }),
+    indicatorSeparator: () => ({ display: "none" }),
+    dropdownIndicator: (base: object, state: { isDisabled?: boolean }) => ({
+        ...base,
+        color: "var(--muted)",
+        padding: "8px",
+        ...(state.isDisabled ? { display: "none" } : {}),
+    }),
+};
+
+function AccountDetailsFields({ account, onUpdate }: { account: Account; onUpdate: (updated: Account) => void }) {
+    const [isEditing, setIsEditing] = useState(false);
+    const [location, setLocation] = useState(account.location || "");
+    const [ageGroup, setAgeGroup] = useState(account.age_group || "");
+    const [gender, setGender] = useState(normalizeGender(account.gender));
+    const [activeProgram, setActiveProgram] = useState(account.active_program_name || "");
+    const [loading, setLoading] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+    const handleSave = async () => {
+        setLoading(true);
+        try {
+            const res = await updateAccount(account.id, {
+                name: account.account_name,
+                cpl_threshold: account.cpl_threshold,
+                drive_link: account.drive_link ?? undefined,
+                sheet_link: account.sheet_link ?? undefined,
+                location: location.trim() || null,
+                age_group: ageGroup.trim() || null,
+                gender: gender.trim() || null,
+                active_program_name: activeProgram.trim() || null
+            });
+            if (res.success && res.data?.updatedAccount) {
+                onUpdate(res.data.updatedAccount);
+                setIsEditing(false);
+                setToast({ message: "Details updated", type: "success" });
+            } else {
+                setToast({ message: res.error || "Failed", type: "error" });
+            }
+        } catch {
+            setToast({ message: "Network error", type: "error" });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (isEditing) {
+        return (
+            <div className="bg-card border-2 border-blue-200 p-6 rounded-[20px] shadow-md col-span-1 md:col-span-2 lg:col-span-3 flex flex-col">
+                <p className="text-[13px] text-muted font-medium mb-4">Edit Account Details</p>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-[11px] text-muted uppercase font-semibold mb-1 block">Location</label>
+                        <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. US, UK"
+                            className="w-full bg-hover-bg border border-border rounded-[10px] px-3 py-2 text-[13px] focus:outline-none focus:border-blue-500" />
+                    </div>
+                    <div>
+                        <label className="text-[11px] text-muted uppercase font-semibold mb-1 block">Age Group</label>
+                        <input type="text" value={ageGroup} onChange={(e) => setAgeGroup(e.target.value)} placeholder="e.g. 25-34"
+                            className="w-full bg-hover-bg border border-border rounded-[10px] px-3 py-2 text-[13px] focus:outline-none focus:border-blue-500" />
+                    </div>
+                    <div>
+                        <label className="text-[11px] text-muted uppercase font-semibold mb-1 block">Gender</label>
+                        <Select
+                            value={gender ? (GENDER_SELECT_OPTIONS.find((o) => o.value === gender) || { value: gender, label: gender }) : null}
+                            onChange={(opt) => setGender(opt?.value ?? "")}
+                            options={[
+                                ...GENDER_SELECT_OPTIONS.filter((o) => o.value !== ""),
+                                ...(gender && !GENDER_OPTIONS.includes(gender) ? [{ value: gender, label: gender }] : []),
+                            ]}
+                            placeholder="Select gender"
+                            isClearable
+                            styles={genderSelectStyles}
+                            classNamePrefix="gender-select"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[11px] text-muted uppercase font-semibold mb-1 block">Active Program Name</label>
+                        <input type="text" value={activeProgram} onChange={(e) => setActiveProgram(e.target.value)} placeholder="e.g. 6WC"
+                            className="w-full bg-hover-bg border border-border rounded-[10px] px-3 py-2 text-[13px] focus:outline-none focus:border-blue-500" />
+                    </div>
+                </div>
+                <div className="flex items-center justify-end gap-2 mt-5">
+                    <button onClick={() => { setIsEditing(false); setLocation(account.location || ""); setAgeGroup(account.age_group || ""); setGender(normalizeGender(account.gender)); setActiveProgram(account.active_program_name || ""); }}
+                        className="text-[13px] text-muted hover:text-foreground px-4 py-2" disabled={loading}>Cancel</button>
+                    <button onClick={handleSave} disabled={loading}
+                        className="bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-semibold px-5 py-2 rounded-[10px] shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        {loading ? "Saving..." : "Save"}
+                    </button>
+                </div>
+                {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            </div>
+        );
+    }
+
+    const inputClassDisabled = "w-full bg-hover-bg border border-border rounded-[10px] px-3 py-2 text-[13px] text-foreground cursor-not-allowed opacity-90";
+
+    return (
+        <div className="bg-card rounded-[20px] p-6 shadow-sm border border-border col-span-1 md:col-span-2 lg:col-span-3 flex flex-col min-h-[200px] w-full">
+            <div className="flex justify-between items-center mb-3 min-h-[32px]">
+                <p className="text-[13px] text-muted font-medium">Account Details</p>
+                <button onClick={() => setIsEditing(true)} className="text-muted hover:text-foreground p-1.5 rounded-[10px] hover:bg-hover-bg transition-colors w-8 h-8 flex items-center justify-center flex-shrink-0" title="Edit details">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                </button>
+            </div>
+            <div className="grid grid-cols-2 gap-4 min-w-0">
+                <div>
+                    <label className="text-[11px] text-muted uppercase font-semibold mb-1 block">Location</label>
+                    <input type="text" value={account.location || ""} readOnly disabled className={inputClassDisabled} placeholder="—" />
+                </div>
+                <div>
+                    <label className="text-[11px] text-muted uppercase font-semibold mb-1 block">Age Group</label>
+                    <input type="text" value={account.age_group || ""} readOnly disabled className={inputClassDisabled} placeholder="—" />
+                </div>
+                <div>
+                    <label className="text-[11px] text-muted uppercase font-semibold mb-1 block">Gender</label>
+                    <Select
+                        value={(() => {
+                            const val = normalizeGender(account.gender);
+                            return { value: val, label: val || "—" };
+                        })()}
+                        options={[
+                            { value: "", label: "—" },
+                            ...GENDER_OPTIONS.map((o) => ({ value: o, label: o })),
+                            ...(account.gender && !GENDER_OPTIONS.includes(account.gender) && account.gender !== "All"
+                                ? [{ value: account.gender, label: account.gender }]
+                                : []),
+                        ]}
+                        isDisabled
+                        styles={genderSelectStyles}
+                        classNamePrefix="gender-select"
+                    />
+                </div>
+                <div>
+                    <label className="text-[11px] text-muted uppercase font-semibold mb-1 block">Active Program Name</label>
+                    <input type="text" value={account.active_program_name || ""} readOnly disabled className={inputClassDisabled} placeholder="—" />
+                </div>
             </div>
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </div>
@@ -370,16 +557,16 @@ function CplThresholdControl({ account, onUpdate }: { account: Account; onUpdate
     }
 
     return (
-        <div className={`bg-card rounded-[20px] p-6 transition-all shadow-sm hover:shadow-md border ${success ? 'border-green-200' : 'border-border'} h-full`}>
-            <div className="flex justify-between items-start mb-2">
+        <div className={`bg-card rounded-[20px] p-6 transition-all shadow-sm hover:shadow-md border min-h-[200px] flex flex-col ${success ? 'border-green-200' : 'border-border'}`}>
+            <div className="flex justify-between items-center mb-2 min-h-[32px]">
                 <p className="text-[13px] text-muted font-medium">CPL Threshold</p>
-                <button onClick={() => setIsEditing(true)} className="text-muted hover:text-foreground transition-colors p-1 rounded-[8px] hover:bg-hover-bg" title="Edit Threshold">
+                <button onClick={() => setIsEditing(true)} className="text-muted hover:text-foreground transition-colors p-1.5 rounded-[8px] hover:bg-hover-bg w-8 h-8 flex items-center justify-center" title="Edit Threshold">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                 </button>
             </div>
-            <div className="flex items-baseline gap-2">
+            <div className="flex items-baseline gap-2 flex-1">
                 <h3 className="text-3xl font-bold text-foreground tabular-nums">${account.cpl_threshold}</h3>
                 {success && <span className="text-[12px] text-green-600 font-medium">Updated ✓</span>}
             </div>
@@ -585,6 +772,10 @@ export default function AccountPage() {
         setAccounts(prev => prev.map(acc => acc.id === id ? { ...acc, drive_link: drive, sheet_link: sheet } : acc));
     };
 
+    const handleAccountDetailsUpdate = (updated: Account) => {
+        setAccounts(prev => prev.map(acc => acc.id === updated.id ? updated : acc));
+    };
+
     const handleCampaignThresholdUpdate = (name: string, newVal: number) => {
         setCampaignThresholds(prev => {
             const existing = prev.find(t => t.campaign_name === name);
@@ -722,34 +913,34 @@ export default function AccountPage() {
             {/* Account Header */}
             <div className="max-w-[1400px] mx-auto px-10 mb-10">
                 <div className="bg-card rounded-[20px] p-7 shadow-sm border border-border">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-5">
-                            <div className="w-13 h-13 bg-hover-bg rounded-[14px] flex items-center justify-center">
+                    <div className="flex flex-wrap items-center justify-between gap-6">
+                        <div className="flex items-center gap-4 min-w-0">
+                            <div className="w-13 h-13 flex-shrink-0 bg-hover-bg rounded-[14px] flex items-center justify-center">
                                 <svg className="w-6 h-6 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                                 </svg>
                             </div>
-                            <div>
-                                <div className="flex items-center gap-3 mb-1">
-                                    <h1 className="text-[22px] font-bold text-foreground tracking-tight">{currentAccount?.account_name || "Loading..."}</h1>
-                                    <span className="bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2.5 py-1 rounded-full text-[11px] font-medium flex items-center gap-1.5 border border-green-100 dark:border-green-800">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Active
+                            <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                                    <h1 className="text-[22px] font-bold text-foreground tracking-tight truncate">{currentAccount?.account_name || "Loading..."}</h1>
+                                    <span className="inline-flex items-center shrink-0 gap-1.5 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2.5 py-1 rounded-full text-[11px] font-medium border border-green-200/60 dark:border-green-700/50">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />Active
                                     </span>
                                     {currentAccount?.auto_pause_enabled && (
-                                        <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2.5 py-1 rounded-full text-[11px] font-medium flex items-center gap-1.5 border border-blue-100 dark:border-blue-800">
-                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <span className="inline-flex items-center shrink-0 gap-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2.5 py-1 rounded-full text-[11px] font-medium border border-blue-200/60 dark:border-blue-700/50">
+                                            <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                                             </svg>
                                             Auto-Pause On
                                         </span>
                                     )}
                                 </div>
-                                <p className="text-[13px] text-muted">ID: <span className="font-mono">{accountId}</span></p>
+                                <p className="text-[13px] text-muted mt-1">ID: <span className="font-mono">{accountId}</span></p>
                             </div>
                         </div>
-                        <div className="text-right">
-                            <p className="text-[12px] text-muted mb-1">Last Updated <span className="opacity-80">(local)</span></p>
-                            <p className="text-[13px] font-medium text-foreground tabular-nums">
+                        <div className="text-right shrink-0 bg-hover-bg/50 rounded-xl px-4 py-3 border border-border/50">
+                            <p className="text-[12px] text-muted mb-0.5">Last Updated <span className="opacity-80">(local)</span></p>
+                            <p className="text-[14px] font-semibold text-foreground tabular-nums">
                                 {lastUpdated?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) || "--:--:--"}
                             </p>
                         </div>
@@ -764,23 +955,27 @@ export default function AccountPage() {
                     {currentAccount && <CplThresholdControl account={currentAccount} onUpdate={handleThresholdUpdate} />}
 
                     {/* 🔹 Active Ads Card (Prominent) */}
-                    <div className="bg-card rounded-[20px] p-6 shadow-sm hover:shadow-md transition-all border border-border h-full">
-                        <p className="text-[13px] text-muted font-medium mb-2">Active Ads</p>
-                        <div className="flex items-baseline gap-2">
+                    <div className="bg-card rounded-[20px] p-6 shadow-sm hover:shadow-md transition-all border border-border min-h-[200px] flex flex-col">
+                        <div className="flex justify-between items-center mb-2 min-h-[32px]">
+                            <p className="text-[13px] text-muted font-medium">Active Ads</p>
+                            <span className="w-8 h-8 flex-shrink-0" aria-hidden />
+                        </div>
+                        <div className="flex items-baseline gap-2 flex-1">
                             <h3 className="text-3xl font-bold tabular-nums text-foreground">{summary.totalActiveAds}</h3>
                             <span className="text-[11px] text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded-full font-semibold">Live</span>
                         </div>
                         <p className="text-[11px] text-muted mt-2 leading-snug">Monitoring live performance</p>
                     </div>
 
-                    {currentAccount && <AccountLinksControl account={currentAccount} onUpdate={handleLinksUpdate} />}
-
                     {/* Alerts + Auto-Pause combined card */}
                     {currentAccount && (
-                        <div className="bg-card rounded-[20px] p-6 shadow-sm hover:shadow-md transition-all border border-border space-y-4 h-full">
+                        <div className="bg-card rounded-[20px] p-6 shadow-sm hover:shadow-md transition-all border border-border min-h-[200px] flex flex-col">
+                            <div className="flex justify-between items-center mb-2 min-h-[32px]">
+                                <p className="text-[13px] text-muted font-medium">Alerts</p>
+                                <span className="w-8 h-8 flex-shrink-0" aria-hidden />
+                            </div>
                             {/* Alerts */}
-                            <div>
-                                <p className="text-[13px] text-muted font-medium mb-2">Alerts</p>
+                            <div className="flex-1 min-h-0">
                                 <div className="flex items-baseline gap-2">
                                     <h3 className={`text-3xl font-bold tabular-nums ${summary.adsInAlert > 0 ? "text-red-600" : "text-foreground"}`}>{summary.adsInAlert}</h3>
                                     <span className="text-[12px] text-muted">active</span>
@@ -789,33 +984,41 @@ export default function AccountPage() {
                             </div>
 
                             {/* Divider */}
-                            <div className="border-t border-border" />
+                            <div className="border-t border-border my-3" />
 
-                            {/* Compact Auto-Pause row */}
-                            <div className="flex items-center justify-between">
-                                <div>
+                            {/* Compact Auto-Pause row — aligned */}
+                            <div className="flex items-center justify-between gap-4 min-h-[44px]">
+                                <div className="flex flex-col justify-center">
                                     <p className="text-[13px] text-muted font-medium">Auto-Pause</p>
                                     <p className={`text-[11px] font-semibold mt-0.5 ${currentAccount.auto_pause_enabled ? "text-green-500" : "text-muted"}`}>
                                         {currentAccount.auto_pause_enabled ? "Enabled" : "Disabled"}
                                     </p>
                                 </div>
-                                <AutoPauseToggle account={currentAccount} onToggle={handleAutoPauseToggle} compact />
+                                <div className="flex-shrink-0 flex items-center">
+                                    <AutoPauseToggle account={currentAccount} onToggle={handleAutoPauseToggle} compact />
+                                </div>
                             </div>
 
                             <div className="border-t border-border" />
 
-                            {/* Weekly Report row */}
-                            <div className="flex items-center justify-between">
-                                <div>
+                            {/* Weekly Report row — aligned */}
+                            <div className="flex items-center justify-between gap-4 min-h-[44px]">
+                                <div className="flex flex-col justify-center">
                                     <p className="text-[13px] text-muted font-medium">Weekly Report</p>
                                     <p className={`text-[11px] font-semibold mt-0.5 ${(currentAccount.include_in_weekly_report ?? true) ? "text-green-500" : "text-muted"}`}>
                                         {(currentAccount.include_in_weekly_report ?? true) ? "Included" : "Excluded"}
                                     </p>
                                 </div>
-                                <WeeklyReportToggle account={currentAccount} onToggle={handleWeeklyReportToggle} />
+                                <div className="flex-shrink-0 flex items-center">
+                                    <WeeklyReportToggle account={currentAccount} onToggle={handleWeeklyReportToggle} />
+                                </div>
                             </div>
                         </div>
                     )}
+
+                    {currentAccount && <AccountLinksControl account={currentAccount} onUpdate={handleLinksUpdate} />}
+
+                    {currentAccount && <AccountDetailsFields account={currentAccount} onUpdate={handleAccountDetailsUpdate} />}
 
                     {budget && <BudgetProgress budget={budget} />}
 
@@ -831,21 +1034,21 @@ export default function AccountPage() {
                             {top3WorstAds.map((ad, i) => (
                                 <div key={ad.ad_meta_id} className={`bg-card rounded-[20px] p-6 shadow-sm hover:shadow-md transition-all border ${ad.status === 'CRITICAL' ? 'border-l-4 border-l-red-500 border-border' :
                                     ad.status === 'ALERT' ? 'border-l-4 border-l-amber-400 border-border' : 'border-border'}`}>
-                                    <div className="flex justify-between items-start mb-3">
+                                    <div className="flex justify-between items-center mb-3">
                                         <span className="text-[12px] text-muted font-medium">#{i + 1}</span>
                                         <StatusBadge status={ad.status} />
                                     </div>
-                                    <h3 className="text-[14px] font-semibold text-foreground line-clamp-2 leading-snug mb-1" title={ad.ad_name}>{ad.ad_name}</h3>
-                                    <p className="text-[12px] text-muted truncate mb-5" title={ad.campaign_name}>{ad.campaign_name}</p>
-                                    <div className="pt-4 border-t border-border grid grid-cols-3 gap-3 text-center">
+                                    <h3 className="text-[14px] font-semibold text-foreground line-clamp-2 leading-snug mb-2" title={ad.ad_name}>{ad.ad_name}</h3>
+                                    <p className="text-[12px] text-muted/90 bg-muted/30 rounded-lg px-2.5 py-1.5 truncate mb-4 font-medium" title={ad.campaign_name}>{ad.campaign_name}</p>
+                                    <div className="pt-4 border-t border-border grid grid-cols-3 gap-2 text-center">
                                         {[
                                             { label: "CPL", value: `$${ad.calculated_cpl.toFixed(2)}`, color: ad.status === "CRITICAL" || ad.status === "ALERT" ? "text-red-600" : "text-foreground" },
                                             { label: "Spend", value: `$${ad.spend.toFixed(0)}`, color: "text-foreground" },
                                             { label: "Leads", value: ad.leads.toString(), color: "text-foreground" },
                                         ].map((m) => (
-                                            <div key={m.label}>
+                                            <div key={m.label} className="min-w-0">
                                                 <p className="text-[11px] text-muted mb-1">{m.label}</p>
-                                                <p className={`text-[14px] font-bold tabular-nums ${m.color}`}>{m.value}</p>
+                                                <p className={`text-[14px] font-bold tabular-nums truncate ${m.color}`}>{m.value}</p>
                                             </div>
                                         ))}
                                     </div>
