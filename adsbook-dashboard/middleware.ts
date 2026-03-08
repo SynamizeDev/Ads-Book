@@ -2,13 +2,19 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseAnonKey) {
+        return NextResponse.next();
+    }
+
     let supabaseResponse = NextResponse.next({
         request,
     });
 
     const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        supabaseUrl,
+        supabaseAnonKey,
         {
             cookies: {
                 getAll() {
@@ -44,10 +50,10 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(url);
     }
 
-    // If user is logged in and on login page, redirect to dashboard
+    // If user is logged in and on login page, redirect to branding (then dashboard)
     if (user && request.nextUrl.pathname.startsWith("/login")) {
         const url = request.nextUrl.clone();
-        url.pathname = "/";
+        url.pathname = "/branding";
         return NextResponse.redirect(url);
     }
 

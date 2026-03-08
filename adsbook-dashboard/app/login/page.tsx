@@ -24,10 +24,8 @@ export default function LoginPage() {
                 password,
             });
             if (error) throw error;
-            // Hard navigation ensures middleware picks up the new session cookie
-            // in a single clean request — avoids the double-SSR caused by
-            // calling router.push() + router.refresh() together.
-            window.location.href = "/";
+            // Hard navigation to branding first (fade in/out), then user is sent to dashboard
+            window.location.href = "/branding";
         } catch (err: any) {
             setError(err.message || "An error occurred");
             setLoading(false); // Only stop loading if there's an error, otherwise the overlay stays until redirect
