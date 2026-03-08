@@ -7,7 +7,6 @@ import { motion } from "framer-motion";
 const FADE_IN_MS = 600;
 const HOLD_MS = 1400;
 const FADE_OUT_MS = 700;
-const TOTAL_MS = FADE_IN_MS + HOLD_MS + FADE_OUT_MS;
 
 export default function BrandingPage() {
   const router = useRouter();
@@ -15,15 +14,16 @@ export default function BrandingPage() {
 
   useEffect(() => {
     const holdTimer = setTimeout(() => setPhase("hold"), FADE_IN_MS);
-    const outTimer = setTimeout(() => setPhase("out"), FADE_IN_MS + HOLD_MS);
-    const redirectTimer = setTimeout(() => {
+    const startOutAndNavigate = FADE_IN_MS + HOLD_MS;
+    const outTimer = setTimeout(() => {
+      setPhase("out");
+      // Navigate as soon as fade-out starts so dashboard loads during the fade (avoids black gap)
       router.replace("/");
-    }, TOTAL_MS);
+    }, startOutAndNavigate);
 
     return () => {
       clearTimeout(holdTimer);
       clearTimeout(outTimer);
-      clearTimeout(redirectTimer);
     };
   }, [router]);
 
