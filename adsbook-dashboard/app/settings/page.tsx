@@ -10,7 +10,7 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-    const [form, setForm] = useState({ name: "", telegram_chat_id: "", default_cpl_threshold: 40, weekly_report_enabled: false });
+    const [form, setForm] = useState({ name: "", telegram_chat_id: "", default_cpl_threshold: 40, weekly_report_enabled: false, timezone: "UTC" });
     const { theme, toggleTheme } = useTheme();
 
     useEffect(() => {
@@ -23,6 +23,7 @@ export default function SettingsPage() {
                     telegram_chat_id: res.data.telegram_chat_id || "",
                     default_cpl_threshold: res.data.default_cpl_threshold || 40,
                     weekly_report_enabled: res.data.weekly_report_enabled || false,
+                    timezone: res.data.timezone || "UTC",
                 });
             }
             setLoading(false);
@@ -107,15 +108,40 @@ export default function SettingsPage() {
                     {/* Reports */}
                     <section className="bg-card rounded-[20px] p-7 shadow-sm border border-border">
                         <h2 className="text-[16px] font-semibold text-foreground mb-5">Weekly Reports</h2>
-                        <div className="flex items-center justify-between">
+                        <div className="space-y-5">
                             <div>
-                                <p className="text-[14px] font-medium text-foreground">Automated Weekly Report</p>
-                                <p className="text-[12px] text-muted mt-0.5">Sends a summary to Telegram every Sunday at 9 AM UTC</p>
+                                <label className="block text-[13px] font-medium text-muted mb-2">Timezone</label>
+                                <select value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })}
+                                    className="w-full bg-background border border-border rounded-[12px] px-4 py-3 text-[14px] text-foreground focus:border-accent focus:outline-none transition-colors">
+                                    <option value="UTC">UTC</option>
+                                    <option value="America/New_York">Eastern (America/New_York)</option>
+                                    <option value="America/Chicago">Central (America/Chicago)</option>
+                                    <option value="America/Denver">Mountain (America/Denver)</option>
+                                    <option value="America/Los_Angeles">Pacific (America/Los_Angeles)</option>
+                                    <option value="Europe/London">Europe/London</option>
+                                    <option value="Europe/Paris">Europe/Paris</option>
+                                    <option value="Asia/Dubai">Asia/Dubai</option>
+                                    <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                                    <option value="Asia/Singapore">Asia/Singapore</option>
+                                    <option value="Asia/Tokyo">Asia/Tokyo</option>
+                                    <option value="Australia/Sydney">Australia/Sydney</option>
+                                </select>
+                                <p className="text-[12px] text-muted mt-1">Used for weekly report schedule and time display</p>
                             </div>
-                            <button onClick={() => setForm({ ...form, weekly_report_enabled: !form.weekly_report_enabled })}
-                                className={`relative w-12 h-6 rounded-full transition-all duration-300 ${form.weekly_report_enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
-                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300 ${form.weekly_report_enabled ? 'translate-x-6' : 'translate-x-0'}`} />
-                            </button>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-[14px] font-medium text-foreground">Automated Weekly Report</p>
+                                    <p className="text-[12px] text-muted mt-0.5">
+                                        {form.timezone === "UTC"
+                                            ? "Sends a summary to Telegram every Sunday at 9 AM UTC"
+                                            : `Sends every Sunday at 9 AM in your timezone (${form.timezone})`}
+                                    </p>
+                                </div>
+                                <button onClick={() => setForm({ ...form, weekly_report_enabled: !form.weekly_report_enabled })}
+                                    className={`relative w-12 h-6 rounded-full transition-all duration-300 ${form.weekly_report_enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300 ${form.weekly_report_enabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                                </button>
+                            </div>
                         </div>
                         {form.weekly_report_enabled && (
                             <div className="mt-4 p-4 bg-background rounded-[14px] border border-border text-[13px] text-muted">

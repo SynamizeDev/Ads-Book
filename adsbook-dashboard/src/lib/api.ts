@@ -110,6 +110,7 @@ export interface SystemStatus {
 export interface AgencyProfile {
   name: string;
   id: string;
+  timezone?: string;
 }
 
 export interface ActivityLog {
@@ -127,6 +128,7 @@ export interface Settings {
   telegram_chat_id: string;
   default_cpl_threshold: number;
   weekly_report_enabled: boolean;
+  timezone?: string;
 }
 
 export interface TrendPoint {

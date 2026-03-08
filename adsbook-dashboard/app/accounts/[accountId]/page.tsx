@@ -441,7 +441,7 @@ function AccountAlertHistory({ accountId }: { accountId: string }) {
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="bg-hover-bg border-b border-border">
-                            <th className="px-6 py-3.5 text-[11px] font-medium text-muted uppercase tracking-wider">Date</th>
+                            <th className="px-6 py-3.5 text-[11px] font-medium text-muted uppercase tracking-wider">Date <span className="normal-case font-normal opacity-80">(local)</span></th>
                             <th className="px-6 py-3.5 text-[11px] font-medium text-muted uppercase tracking-wider">Campaign / Ad</th>
                             <th className="px-6 py-3.5 text-[11px] font-medium text-muted uppercase tracking-wider">Type</th>
                             <th className="px-6 py-3.5 text-[11px] font-medium text-muted uppercase tracking-wider text-right">CPL</th>
@@ -748,7 +748,7 @@ export default function AccountPage() {
                             </div>
                         </div>
                         <div className="text-right">
-                            <p className="text-[12px] text-muted mb-1">Last Updated</p>
+                            <p className="text-[12px] text-muted mb-1">Last Updated <span className="opacity-80">(local)</span></p>
                             <p className="text-[13px] font-medium text-foreground tabular-nums">
                                 {lastUpdated?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) || "--:--:--"}
                             </p>

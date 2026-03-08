@@ -105,7 +105,7 @@ export default function TrendCharts({ data }: TrendChartsProps) {
                 <div className="flex justify-between items-center mb-10">
                     <div>
                         <h3 className="text-lg font-bold text-foreground mb-1">CPL Performance History</h3>
-                        <p className="text-xs text-muted">Averaged across all active ads per day</p>
+                        <p className="text-xs text-muted">Averaged across all active ads per day. Dates in local time.</p>
                     </div>
                 </div>
                 <div className="h-[350px] w-full">

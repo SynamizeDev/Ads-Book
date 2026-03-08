@@ -162,8 +162,9 @@ function UrgentAlertsSection({ alerts }: { alerts: UrgentAlert[] }) {
               <span className={`px-2.5 py-1 rounded-full text-[11px] font-medium ${alert.severity === 'CRITICAL' ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'}`}>
                 {alert.severity === 'CRITICAL' ? 'Critical' : 'Warning'}
               </span>
-              <span className="text-xs text-muted tabular-nums" suppressHydrationWarning>
+              <span className="text-xs text-muted tabular-nums" suppressHydrationWarning title="Local time">
                 {new Date(alert.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                <span className="ml-1 opacity-70">(local)</span>
               </span>
             </div>
 

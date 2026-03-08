@@ -75,7 +75,8 @@ export default function ActivityPage() {
         <div className="min-h-screen pb-20">
             <div className="max-w-[900px] mx-auto px-10 pt-10">
                 <h1 className="text-[22px] font-bold text-foreground tracking-tight mb-1">Activity Log</h1>
-                <p className="text-[14px] text-muted mb-10">Track all changes and system events.</p>
+                <p className="text-[14px] text-muted mb-2">Track all changes and system events.</p>
+                <p className="text-[12px] text-muted/80 mb-10">Times shown in your local timezone.</p>
 
                 {logs.length === 0 ? (
                     <div className="bg-card rounded-[20px] p-16 text-center border border-border">

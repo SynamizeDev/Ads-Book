@@ -93,7 +93,7 @@ export default function AlertsPage() {
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-hover-bg/50 border-b border-border">
-                                            <th className="px-6 py-4 text-[11px] font-medium text-muted uppercase tracking-wider">Date</th>
+                                            <th className="px-6 py-4 text-[11px] font-medium text-muted uppercase tracking-wider">Date <span className="normal-case font-normal opacity-80">(local)</span></th>
                                             <th className="px-6 py-4 text-[11px] font-medium text-muted uppercase tracking-wider">Account</th>
                                             <th className="px-6 py-4 text-[11px] font-medium text-muted uppercase tracking-wider">Campaign / Ad</th>
                                             <th className="px-6 py-4 text-[11px] font-medium text-muted uppercase tracking-wider">Type</th>
