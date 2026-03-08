@@ -233,13 +233,13 @@ app.get("/api/me", async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("agencies")
-      .select("name, id")
+      .select("name, id, timezone")
       .limit(1)
       .single();
 
     if (error) throw error;
 
-    res.json(data || { name: "Guest Agency" });
+    res.json(data ? { name: data.name, id: data.id, timezone: data.timezone || "UTC" } : { name: "Guest Agency", timezone: "UTC" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1001,6 +1001,7 @@ app.get("/api/settings", async (req, res) => {
       telegram_chat_id: data.telegram_chat_id || "",
       default_cpl_threshold: data.default_cpl_threshold || 40,
       weekly_report_enabled: data.weekly_report_enabled ?? false,
+      timezone: data.timezone || "UTC",
       id: data.id
     });
   } catch (error) {
@@ -1010,13 +1011,14 @@ app.get("/api/settings", async (req, res) => {
 
 app.patch("/api/settings", async (req, res) => {
   try {
-    const { name, telegram_chat_id, default_cpl_threshold, weekly_report_enabled } = req.body;
+    const { name, telegram_chat_id, default_cpl_threshold, weekly_report_enabled, timezone } = req.body;
 
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (telegram_chat_id !== undefined) updateData.telegram_chat_id = telegram_chat_id;
     if (default_cpl_threshold !== undefined) updateData.default_cpl_threshold = default_cpl_threshold;
     if (weekly_report_enabled !== undefined) updateData.weekly_report_enabled = weekly_report_enabled;
+    if (timezone !== undefined) updateData.timezone = timezone;
 
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ error: "No fields to update" });
@@ -1357,18 +1359,43 @@ app.get("/api/compare", async (req, res) => {
 // WEEKLY REPORT (Sunday automated Telegram report)
 // ============================================================
 
-async function runWeeklyReport() {
-  console.log(`\n📊 Weekly Report started: ${new Date().toISOString()}`);
+/** Returns true if the current time in the given IANA timezone is Sunday 9:00–9:59 AM (local time). */
+function isSunday9AMInTimezone(timezone) {
+  const tz = timezone || "UTC";
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    weekday: "short",
+    hour: "numeric",
+    minute: "numeric",
+    hour12: false
+  });
+  const parts = formatter.formatToParts(new Date());
+  const get = (type) => (parts.find((p) => p.type === type) || {}).value;
+  const weekday = get("weekday");
+  const hour = parseInt(get("hour"), 10);
+  const minute = parseInt(get("minute"), 10);
+  return weekday === "Sun" && hour === 9 && minute >= 0 && minute < 60;
+}
+
+/**
+ * Run weekly report for one agency.
+ * @param {string} [agencyId] - If provided, run for this agency only. Otherwise use first agency (backward compat).
+ */
+async function runWeeklyReport(agencyId) {
+  console.log(`\n📊 Weekly Report started: ${new Date().toISOString()}${agencyId ? ` (agency ${agencyId})` : ""}`);
 
   let chatId = null;
 
   try {
-    // Get agency telegram chat ID
-    const { data: agency, error: agencyError } = await supabase
+    let query = supabase
       .from("agencies")
-      .select("name, telegram_chat_id, weekly_report_enabled")
-      .limit(1)
-      .single();
+      .select("id, name, telegram_chat_id, weekly_report_enabled");
+    if (agencyId) {
+      query = query.eq("id", agencyId).single();
+    } else {
+      query = query.limit(1).single();
+    }
+    const { data: agency, error: agencyError } = await query;
 
     if (agencyError || !agency) {
       console.log("⚠️ No agency found for weekly report");
@@ -1411,12 +1438,16 @@ async function runWeeklyReport() {
     const since = weekStart.toISOString().split("T")[0];
     const until = weekEnd.toISOString().split("T")[0];
 
-    // Get active accounts opted into weekly report
-    const { data: accounts, error: accError } = await supabase
+    // Get active accounts opted into weekly report (for this agency)
+    let accQuery = supabase
       .from("ad_accounts")
       .select("*")
       .eq("is_active", true)
       .eq("include_in_weekly_report", true);
+    if (agency.id) {
+      accQuery = accQuery.eq("agency_id", agency.id);
+    }
+    const { data: accounts, error: accError } = await accQuery;
 
     if (accError || !accounts || accounts.length === 0) {
       console.log("⚠️ No accounts opted into weekly report");
@@ -1488,7 +1519,8 @@ async function runWeeklyReport() {
   }
 }
 
-// Manual / external cron trigger for weekly report
+// Manual / external cron trigger for weekly report.
+// Call this every hour; reports are sent only for agencies where it is currently Sunday 9 AM in their timezone.
 app.post("/run-weekly-report", async (req, res) => {
   const authHeader = req.headers["x-cron-secret"];
   const secret = process.env.CRON_SECRET;
@@ -1497,11 +1529,33 @@ app.post("/run-weekly-report", async (req, res) => {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  const result = await runWeeklyReport();
-  if (!result.success) {
-    return res.status(500).json({ error: result.error });
+  const { data: agencies, error: listError } = await supabase
+    .from("agencies")
+    .select("id, timezone")
+    .eq("weekly_report_enabled", true)
+    .not("telegram_chat_id", "is", null);
+
+  if (listError) {
+    return res.status(500).json({ error: listError.message });
   }
-  res.json({ success: true, message: "Weekly report triggered" });
+
+  const due = (agencies || []).filter((a) => isSunday9AMInTimezone(a.timezone || "UTC"));
+  let sent = 0;
+  const errors = [];
+
+  for (const agency of due) {
+    const result = await runWeeklyReport(agency.id);
+    if (result.success) sent++;
+    else errors.push(result.error);
+  }
+
+  if (due.length === 0) {
+    return res.json({ success: true, message: "No agency due for weekly report at this time", sent: 0 });
+  }
+  if (errors.length > 0 && sent === 0) {
+    return res.status(500).json({ error: errors[0] || "Weekly report failed" });
+  }
+  res.json({ success: true, message: `Weekly report triggered for ${sent} agency/agencies`, sent });
 });
 
 // Per-account weekly report toggle
@@ -1820,9 +1874,8 @@ if (process.env.NODE_ENV !== "production") {
   console.log("🚫 Internal cron disabled (Production Mode)");
 }
 
-// Weekly report is triggered externally via POST /run-weekly-report
-// Configure your external cron (Render/Railway/GitHub Actions) to call it every Sunday at 9 AM UTC
-console.log("📊 Weekly Report endpoint ready — trigger via external cron (POST /run-weekly-report)");
+// Weekly report: call POST /run-weekly-report every hour (e.g. 0 * * * *). Reports are sent for each agency when it is Sunday 9 AM in that agency's timezone.
+console.log("📊 Weekly Report endpoint ready — trigger via external cron every hour (POST /run-weekly-report)");
 
 app.listen(PORT, () => {
   console.log("🚀 Ads Book Production Mode Enabled");
