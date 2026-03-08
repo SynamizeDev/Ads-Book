@@ -416,6 +416,56 @@ export async function enhanceText(text: string, mode: "full" | "basic" = "full")
   });
 }
 
+/** Creative blueprint from analyze-creative (layout, colors, style, etc.) */
+export interface CreativeAnalysis {
+  layout?: string;
+  composition?: string;
+  dominantColors?: string[];
+  subjectPlacement?: string;
+  textZones?: string;
+  backgroundStyle?: string;
+  typography?: string;
+  visualStyle?: string;
+  brandTone?: string;
+  objects?: string[];
+  [key: string]: unknown;
+}
+
+export async function analyzeCreative(
+  imageBase64: string,
+  mimeType: string = "image/png"
+): Promise<ApiResponse<{ success: boolean; analysis: CreativeAnalysis }>> {
+  return fetchApi<{ success: boolean; analysis: CreativeAnalysis }>("/api/tools/analyze-creative", {
+    method: "POST",
+    body: JSON.stringify({ imageBase64, mimeType }),
+  });
+}
+
+export interface CreativeVariationResult {
+  accountId: string;
+  accountName: string;
+  imageBase64?: string;
+  mimeType?: string;
+  error?: string;
+}
+
+export async function generateCreativeVariations(
+  analysis: CreativeAnalysis,
+  accountIds: string[],
+  options?: { geminiApiKey?: string; imageModelId?: string }
+): Promise<ApiResponse<{ success: boolean; creatives: CreativeVariationResult[] }>> {
+  const body: { analysis: CreativeAnalysis; accountIds: string[]; geminiApiKey?: string; imageModelId?: string } = {
+    analysis,
+    accountIds,
+  };
+  if (options?.geminiApiKey) body.geminiApiKey = options.geminiApiKey;
+  if (options?.imageModelId) body.imageModelId = options.imageModelId;
+  return fetchApi<{ success: boolean; creatives: CreativeVariationResult[] }>("/api/tools/generate-creative-variations", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export async function triggerAlertEngine(): Promise<ApiResponse<{ message: string }>> {
   const res = await fetch("/api/actions/run-alert-engine", { method: "POST" });
   const data = await res.json();
