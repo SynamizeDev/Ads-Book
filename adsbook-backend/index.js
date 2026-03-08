@@ -834,7 +834,7 @@ app.patch("/api/accounts/:id/threshold", async (req, res) => {
 app.patch("/api/accounts/:id", async (req, res) => {
   try {
     const accountId = req.params.id;
-    const { name, cpl_threshold, drive_link, sheet_link } = req.body;
+    const { name, cpl_threshold, drive_link, sheet_link, location, age_group, gender, active_program_name } = req.body;
 
     if (!name || typeof name !== "string" || name.trim() === "") {
       return res.status(400).json({ error: "Invalid name." });
@@ -852,15 +852,21 @@ app.patch("/api/accounts/:id", async (req, res) => {
       return res.status(404).json({ error: "Account not found" });
     }
 
-    // Update in Supabase
+    // Build update payload: only include fields that are present in body (partial update)
+    const updatePayload = {
+      account_name: name,
+      cpl_threshold: cpl_threshold
+    };
+    if (Object.prototype.hasOwnProperty.call(req.body, "drive_link")) updatePayload.drive_link = drive_link ?? null;
+    if (Object.prototype.hasOwnProperty.call(req.body, "sheet_link")) updatePayload.sheet_link = sheet_link ?? null;
+    if (Object.prototype.hasOwnProperty.call(req.body, "location")) updatePayload.location = (req.body.location ?? null) === "" ? null : (req.body.location ?? null);
+    if (Object.prototype.hasOwnProperty.call(req.body, "age_group")) updatePayload.age_group = (req.body.age_group ?? null) === "" ? null : (req.body.age_group ?? null);
+    if (Object.prototype.hasOwnProperty.call(req.body, "gender")) updatePayload.gender = (req.body.gender ?? null) === "" ? null : (req.body.gender ?? null);
+    if (Object.prototype.hasOwnProperty.call(req.body, "active_program_name")) updatePayload.active_program_name = (req.body.active_program_name ?? null) === "" ? null : (req.body.active_program_name ?? null);
+
     const { data, error } = await supabase
       .from("ad_accounts")
-      .update({
-        account_name: name,
-        cpl_threshold: cpl_threshold,
-        drive_link: drive_link || null,
-        sheet_link: sheet_link || null
-      })
+      .update(updatePayload)
       .eq("id", uuid)
       .select()
       .single();
@@ -871,7 +877,10 @@ app.patch("/api/accounts/:id", async (req, res) => {
       return res.status(404).json({ error: "Account not found" });
     }
 
-    console.log(`✅ Account updated: ${name} (Threshold: ${cpl_threshold}) (UUID: ${uuid})`);
+    const detailsLog = [updatePayload.location, updatePayload.age_group, updatePayload.gender, updatePayload.active_program_name].some(v => v != null)
+      ? ` | Details: location=${updatePayload.location ?? "null"}, age_group=${updatePayload.age_group ?? "null"}, gender=${updatePayload.gender ?? "null"}, active_program=${updatePayload.active_program_name ?? "null"}`
+      : "";
+    console.log(`✅ Account updated: ${name} (Threshold: ${cpl_threshold}) (UUID: ${uuid})${detailsLog}`);
 
     res.json({
       success: true,
